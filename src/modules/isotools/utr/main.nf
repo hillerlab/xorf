@@ -38,6 +38,7 @@ process ISOTOOLS_TRUNCATION_DETECTOR {
         $args \\
         --ref $bed \\
         --query $bed \\
+        -O cds \\
         --threads ${task.cpus} \\
         --prefix ${prefix}
 
