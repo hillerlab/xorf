@@ -9,7 +9,7 @@
 
 process BLAST {
     tag "$meta.id:$meta.name"
-    label 'process_high_memory'
+    label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
     container 'ghcr.io/hillerlab/orf-blast:latest'
