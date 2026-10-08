@@ -3,7 +3,7 @@
 __author__ = "Alejandro Gonzales-Irribarren"
 __email__ = "alejandrxgzi@gmail.com"
 __github__ = "https://github.com/alejandrogzi"
-__version__ = "0.0.23"
+__version__ = "0.0.24"
 
 import argparse
 import logging
@@ -542,6 +542,12 @@ def predict(
     >>> # result_df = predict("blast.tsv", "tai.tsv", "toga.tsv", dummy_model)
     >>> # print(result_df.head())
     """
+    # INFO: a chunk with no DIAMOND hits (or no RNAsamba rows) has nothing to score: synthetic
+    # INFO: spike-ins (ERCC) and small rescued chunks produce empty tables, which pandas cannot parse
+    if any(Path(p).stat().st_size == 0 for p in (blast, samba)):
+        log.info(f"INFO: {blast} or {samba} is empty, nothing to predict")
+        return pd.DataFrame()
+
     table = read(blast, samba)
     query = table.loc[:, FEATURES]
 

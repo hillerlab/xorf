@@ -58,6 +58,14 @@ All notable changes to this project are documented below.
 
 ---
 
+## [0.1.1] - 2026-10-08
+
+### Fixes
+- **`predict.py` handles empty inputs**: chunks with no DIAMOND/MMseqs2 hits or RNAsamba rows (e.g. ERCC spike-ins, small rescued chunks) now log and return an empty frame instead of crashing in pandas parsing. Module version bumped to `0.0.24`.
+
+### Infrastructure
+- Manifest updated: pipeline version `0.1.1`.
+
 ## [0.1.0] - 2026-09-02
 
 ### Features
