@@ -58,6 +58,17 @@ All notable changes to this project are documented below.
 
 ---
 
+## [0.0.46] - 2026-10-08
+
+### Fixes
+- **Rename stage emits only renamed outputs**: `RENAME_PREDICTIONS` outputs narrowed from `*.bed`/`*.tsv` to `*.renamed.bed`/`*.renamed.tsv`, so staged inputs are no longer captured and duplicated by downstream concatenation. Stub updated accordingly.
+- **Deterministic run hash**: `localHash` is now derived from `params.prefix` (fallback `xorf`) instead of `randomHash()`, stabilizing output file names and downstream ordering.
+- **Deterministic chunk joining**: masked/unmasked/rescue region and sequence channels now use `concat` instead of `mix`, fixing non-deterministic ordering and flaky final counts.
+- **`predict.py` handles empty inputs**: chunks with no DIAMOND hits or RNAsamba rows (e.g. ERCC spike-ins, small rescued chunks) now log and return an empty frame instead of crashing in pandas parsing. Module version bumped to `0.0.23`.
+
+### Infrastructure
+- Manifest updated: pipeline version `0.0.46`.
+
 ## [0.0.45] - 2026-08-18
 
 ### Fixes
