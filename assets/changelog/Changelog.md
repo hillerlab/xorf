@@ -67,7 +67,7 @@ All notable changes to this project are documented below.
 
 ### Fixes
 - **`-resume` works again**: `main.nf` derived the regions meta `chr` (the chunk-file prefix) from `randomHash()`, so every task after the setup steps got a new hash on each launch. It is now a stable hash of the absolute regions path. The unused `randomHash()` in the xorf subworkflow is removed.
-- **Subprocess failures stop the task**: `orf` now checks the exit status of DIAMOND/MMseqs2, PSAURON, orfipy and TranslationAI (`run_command`). A failed search used to leave an empty hit table that was written out as "no BLAST hit" for every candidate of the chunk. Module version bumped to `0.0.31`.
+- **Subprocess failures stop the task**: `orf` now checks the exit status of DIAMOND/MMseqs2, PSAURON, orfipy and TranslationAI (`run_command`). A failed search used to leave an empty hit table that was written out as "no BLAST hit" for every candidate of the chunk. The task now fails with the tool's own exit code (137 after an out-of-memory kill, which `errorStrategy` retries with more memory). Module version bumped to `0.0.31`.
 - **BLAST settings under `-profile slurm`**: the profile's `withName: '.*:BLAST'` block had the same selector as the top-level one and replaced it, dropping `ext.args` (`--esm` was never passed on SLURM). The profile now uses `'.*:GET_CANDIDATES:BLAST'`, so both blocks apply.
 
 ### Performance

@@ -49,11 +49,14 @@ pub fn reader<P: AsRef<Path> + Debug>(file: P) -> Result<String, Box<dyn std::er
     Ok(contents)
 }
 
-/// Runs a command through `bash -c` and panics unless it exits successfully.
+/// Runs a command through `bash -c` and exits with the tool's status unless it succeeds.
 ///
 /// A failed tool must not look like a successful run without results: a DIAMOND
 /// run that exits non-zero used to leave an empty hit table, which the blast step
-/// then wrote out as "no protein evidence" for every candidate of the chunk.
+/// then wrote out as "no protein evidence" for every candidate of the chunk. The
+/// process exits with the tool's own code rather than panicking (101), so the task
+/// fails the way the tool did: 137 after an out-of-memory kill is one of the codes
+/// xorf's errorStrategy retries with more memory.
 ///
 /// # Arguments
 ///
@@ -72,9 +75,23 @@ pub fn run_command(cmd: &str, tool: &str) {
         .status()
         .unwrap_or_else(|e| panic!("ERROR: failed to execute {tool} command -> {e}"));
 
-    if !status.success() {
-        panic!("ERROR: {tool} exited with {status} -> {cmd}");
+    if let Err(code) = exit_code(&status) {
+        eprintln!("ERROR: {tool} exited with {status} -> {cmd}");
+        std::process::exit(code);
     }
+}
+
+/// `Ok` for a successful run, otherwise the code to exit with: the command's own
+/// exit code, or 128 + signal when the shell itself was killed.
+fn exit_code(status: &std::process::ExitStatus) -> Result<(), i32> {
+    use std::os::unix::process::ExitStatusExt;
+
+    if status.success() {
+        return Ok(());
+    }
+    Err(status
+        .code()
+        .unwrap_or_else(|| 128 + status.signal().unwrap_or(0)))
 }
 
 /// Translates a sequence into amino acids.
@@ -644,15 +661,30 @@ mod tests {
     use super::*;
     use genepred::{Bed12, Reader};
 
+    fn status_of(cmd: &str) -> std::process::ExitStatus {
+        std::process::Command::new("bash")
+            .arg("-c")
+            .arg(cmd)
+            .status()
+            .unwrap()
+    }
+
     #[test]
     fn test_run_command_accepts_success() {
         run_command("true", "true");
     }
 
     #[test]
-    #[should_panic(expected = "false exited with")]
-    fn test_run_command_panics_on_failure() {
-        run_command("false", "false");
+    fn test_exit_code_keeps_the_command_code() {
+        assert_eq!(exit_code(&status_of("true")), Ok(()));
+        assert_eq!(exit_code(&status_of("exit 3")), Err(3));
+        // a tool killed by SIGKILL (the OOM killer) -> 137, which xorf retries
+        assert_eq!(exit_code(&status_of("sh -c 'kill -9 $$'")), Err(137));
+    }
+
+    #[test]
+    fn test_exit_code_of_a_killed_shell() {
+        assert_eq!(exit_code(&status_of("kill -9 $$")), Err(137));
     }
 
     #[test]
