@@ -522,11 +522,21 @@ workflow XORF {
           ISOTOOLS_TRUNCATION_DETECTOR(
               ch_full_length_transcripts
           )
+          // INFO: pair every BED with its own descriptor; two unjoined channels pair by
+          // INFO: arrival order, which crossed the masked and UNMSK branches whenever more
+          // INFO: than one BED reached this step (skip_joined_concat, several region files)
+          ch_full_length_transcripts
+              .join(ISOTOOLS_TRUNCATION_DETECTOR.out.descriptor)
+              .multiMap { meta, bed, descriptor ->
+                  bed: [ meta, bed ]
+                  descriptor: [ meta, descriptor ]
+              }
+              .set { ch_strip }
           // INFO: strip_truncations false (annotation-grade input) -> a hint no descriptor
           // INFO: line contains, so every prediction stays in 04_results
           STRIP_TRUNCATIONS(
-              ch_full_length_transcripts,
-              ISOTOOLS_TRUNCATION_DETECTOR.out.descriptor,
+              ch_strip.bed,
+              ch_strip.descriptor,
               strip_truncations ? "TRUNCATED" : "KEEP_ALL_PREDICTIONS"
           )
 
