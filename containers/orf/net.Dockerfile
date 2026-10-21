@@ -3,7 +3,9 @@
 # ==============================================================================
 
 # ---------- Build Stage ----------
-FROM rust:1.93-slim-bullseye AS builder
+# bookworm like the runtime stage: bullseye is past its end of life and its security
+# archive answers 404 for the packages installed below
+FROM rust:1.93-slim-bookworm AS builder
 
 # Build dependencies for Rust project
 RUN apt-get update && \
