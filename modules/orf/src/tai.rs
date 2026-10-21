@@ -88,11 +88,7 @@ pub fn run_tai(args: TaiArgs) {
         fasta.with_extension(PREDICTIONS).display()
     );
 
-    std::process::Command::new("bash")
-        .arg("-c")
-        .arg(cmd)
-        .status()
-        .unwrap_or_else(|e| panic!("ERROR: failed to execute orfipy command -> {e}"));
+    run_command(&cmd, "translationai");
 
     let predictions = reader(fasta.with_extension(PREDICTIONS))
         .unwrap_or_else(|e| panic!("ERROR: failed to read predictions file -> {e}"));

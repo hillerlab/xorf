@@ -49,6 +49,34 @@ pub fn reader<P: AsRef<Path> + Debug>(file: P) -> Result<String, Box<dyn std::er
     Ok(contents)
 }
 
+/// Runs a command through `bash -c` and panics unless it exits successfully.
+///
+/// A failed tool must not look like a successful run without results: a DIAMOND
+/// run that exits non-zero used to leave an empty hit table, which the blast step
+/// then wrote out as "no protein evidence" for every candidate of the chunk.
+///
+/// # Arguments
+///
+/// * `cmd` - The command line.
+/// * `tool` - Name used in the error message.
+///
+/// # Example
+///
+/// ```rust, ignore
+/// run_command("diamond version", "diamond");
+/// ```
+pub fn run_command(cmd: &str, tool: &str) {
+    let status = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(cmd)
+        .status()
+        .unwrap_or_else(|e| panic!("ERROR: failed to execute {tool} command -> {e}"));
+
+    if !status.success() {
+        panic!("ERROR: {tool} exited with {status} -> {cmd}");
+    }
+}
+
 /// Translates a sequence into amino acids.
 ///
 /// # Arguments
@@ -615,6 +643,17 @@ pub fn map_absolute_cds(record: &GenePred, orf_start: u64, orf_end: u64) -> (u64
 mod tests {
     use super::*;
     use genepred::{Bed12, Reader};
+
+    #[test]
+    fn test_run_command_accepts_success() {
+        run_command("true", "true");
+    }
+
+    #[test]
+    #[should_panic(expected = "false exited with")]
+    fn test_run_command_panics_on_failure() {
+        run_command("false", "false");
+    }
 
     #[test]
     fn test_absolute_cds_mapping_forward() {
