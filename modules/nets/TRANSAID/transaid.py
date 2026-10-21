@@ -12,7 +12,7 @@ MODEL = "model/TRANSAID_Embedding_batch4_best_model.pth"
 MODEL_PATH = Path(__file__).resolve().parent / MODEL
 
 
-__version__ = "0.0.1-orf"
+__version__ = "0.0.2-orf"
 
 
 def get_args():
@@ -59,6 +59,20 @@ def get_args():
         type=int,
         default=27109,
         help="Maximum sequence length to process",
+    )
+    parser.add_argument(
+        "--pad_margin",
+        type=int,
+        default=1024,
+        help="Pad each length-sorted batch to its longest sequence plus this margin "
+        "(rounded up to 256, capped at --max_seq_len); >= 1009 leaves scores unchanged; "
+        "negative pads every sequence to --max_seq_len",
+    )
+    parser.add_argument(
+        "--max_tokens",
+        type=int,
+        default=0,
+        help="Cap batch size x padded length per batch (0 = no cap)",
     )
     parser.add_argument(
         "--orf_length_cutoff",
@@ -127,7 +141,11 @@ def main():
             )
 
             logger.info("Starting model prediction...")
-            model_results, probs = predictor.predict_batch(remaining_fasta_path)
+            model_results, probs = predictor.predict_batch(
+                remaining_fasta_path,
+                pad_margin=args.pad_margin,
+                max_tokens=args.max_tokens,
+            )
         else:
             logger.info("No sequences remain for model prediction. Skipping.")
 

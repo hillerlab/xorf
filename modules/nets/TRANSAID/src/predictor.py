@@ -189,97 +189,70 @@ class TranslationPredictor:
         self.scorer = BayesianScorer(min_cds_len=orf_length_cutoff)
 
     def predict_batch(
-        self, fasta_path: Union[str, Path], num_workers: int = 4, batch_size: int = None
+        self,
+        fasta_path: Union[str, Path],
+        num_workers: int = 0,
+        batch_size: int = None,
+        pad_margin: int = 1024,
+        max_tokens: int = 0,
     ) -> Sequence[PredictionResult]:
-        """批量预测FASTA文件中的序列，使用真正的批处理"""
+        """批量预测FASTA文件中的序列，使用真正的批处理
+
+        Sequences are batched in length order and every batch is padded to its
+        longest sequence plus ``pad_margin`` (rounded up to 256, capped at
+        ``sequence_length``) instead of always to ``sequence_length``. The model
+        is fully convolutional with a receptive field of 2,003 nt (at most 1,009
+        positions to the right), so any margin >= 1,009 leaves the probabilities
+        of every real position unchanged; results come back in input order as
+        before. ``pad_margin < 0`` restores fixed-length padding in input order.
+        ``max_tokens`` (> 0) caps batch size x padded length, mainly for GPUs.
+        ``num_workers`` is kept for API compatibility; encoding runs in-process.
+        """
 
         if batch_size is None:
             batch_size = self.batch_size
-        # 创建数据集和数据加载器
         dataset = FastaDataset(fasta_path, self.sequence_length)
-        dataloader = DataLoader(
-            dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False
-        )
+
+        sequences = []
+        for record in dataset.records:
+            sequence = str(record.seq).upper().replace("U", "T")
+            sequences.append((record.id, sequence[: self.sequence_length]))
 
         self.model.eval()
-        all_results = []
-        all_probs = []  # 收集所有预测的原始概率
-        transcript_data = []  # 记录转录本ID和序列长度
+        per_sequence = [None] * len(sequences)  # (probs, transcript data, results)
 
         with (
             torch.no_grad(),
-            tqdm(total=len(dataset), desc="Processing sequences") as pbar,
+            tqdm(total=len(sequences), desc="Processing sequences") as pbar,
         ):
-            for batch_tensors, batch_ids, batch_lengths, batch_sequences in dataloader:
-                # 将批次送入GPU
-                batch_tensors = batch_tensors.to(self.device)
+            for indices, padded_length in self._length_batches(
+                [len(sequence) for _, sequence in sequences],
+                batch_size,
+                pad_margin,
+                max_tokens,
+            ):
+                batch_tensors = torch.stack(
+                    [sequence_to_tensor(sequences[k][1], padded_length) for k in indices]
+                ).to(self.device)
 
                 # 批量预测
                 outputs = self.model(batch_tensors)  # [batch_size, seq_len, 3]
                 probs = F.softmax(outputs, dim=-1)  # 使用 softmax 获取概率
 
-                # 处理每个序列的预测结果
-                for i in range(len(batch_ids)):
-                    tensor = batch_tensors[i]
-                    sequence_id = batch_ids[i]
-                    effective_length = batch_lengths[i].item()
-
-                    # 获取有效序列区域的预测概率
-                    valid_mask = tensor[:effective_length] != 0
-                    seq_probs = probs[i, :effective_length][valid_mask].cpu().numpy()
-
-                    # 获取原始序列（用于后续分析）
-                    sequence = batch_sequences[i][:effective_length]
-
-                    # 保存概率和转录本信息
-                    all_probs.append(seq_probs)
-                    transcript_data.append(
-                        {
-                            "transcript_id": sequence_id,
-                            "length": effective_length,
-                            "sequence": sequence,
-                        }
+                for i, k in enumerate(indices):
+                    sequence_id, sequence = sequences[k]
+                    per_sequence[k] = self._scan_sequence(
+                        sequence_id, sequence, batch_tensors[i], probs[i]
                     )
-                    # print("sequence",sequence)
-
-                    # 提取预测概率
-                    tis_probs = probs[i, :effective_length, 0].cpu().numpy()
-                    tts_probs = probs[i, :effective_length, 1].cpu().numpy()
-                    nontistts_probs = probs[i, :effective_length, 2].cpu().numpy()
-                    # print("i","tis_probs",i,tis_probs)
-                    # print("i","tts_probs",i,tts_probs)
-                    # 寻找潜在的TIS和TTS位点
-                    potential_tis = []
-                    potential_tts = []
-
-                    # 寻找ATG和终止密码子
-                    for j in range(len(sequence) - 2):
-                        codon = sequence[j : j + 3]
-                        if (
-                            codon == "ATG"
-                            and tis_probs[j : j + 3].mean() > self.tis_cutoff
-                        ):
-                            potential_tis.append(j)
-                        elif (
-                            codon in ["TAA", "TAG", "TGA"]
-                            and tts_probs[j : j + 3].mean() > self.tts_cutoff
-                        ):
-                            potential_tts.append(j)
-
-                    # print("potential_tis",potential_tis)
-                    # print("potential_tts",potential_tts)
-                    # 这部分处理每个序列的ORF分析
-                    results = self._process_orfs(
-                        sequence_id,
-                        sequence,
-                        potential_tis,
-                        potential_tts,
-                        tis_probs,
-                        tts_probs,
-                    )
-                    all_results.extend(results)
-
                     pbar.update(1)
+
+        all_results = []
+        all_probs = []  # 收集所有预测的原始概率
+        transcript_data = []  # 记录转录本ID和序列长度
+        for seq_probs, data, results in per_sequence:
+            all_probs.append(seq_probs)
+            transcript_data.append(data)
+            all_results.extend(results)
 
         # 按整合得分排序
         all_results.sort(key=lambda x: x.integrated_score, reverse=True)
@@ -288,6 +261,74 @@ class TranslationPredictor:
         formatted_probs = self._format_results_like_training(transcript_data, all_probs)
 
         return all_results, formatted_probs
+
+    def _length_batches(self, lengths, batch_size, pad_margin, max_tokens):
+        """Index batches and their padded length (see ``predict_batch``)."""
+        if pad_margin < 0:
+            return [
+                (list(range(i, min(i + batch_size, len(lengths)))), self.sequence_length)
+                for i in range(0, len(lengths), batch_size)
+            ]
+
+        def padded(length):
+            return min(self.sequence_length, -(-(length + pad_margin) // 256) * 256)
+
+        batches, current = [], []
+        for k in sorted(range(len(lengths)), key=lambda k: lengths[k]):
+            grown = current + [k]
+            too_many = len(grown) > batch_size
+            too_long = max_tokens > 0 and padded(lengths[k]) * len(grown) > max_tokens
+            if current and (too_many or too_long):
+                batches.append((current, padded(lengths[current[-1]])))
+                grown = [k]
+            current = grown
+        if current:
+            batches.append((current, padded(lengths[current[-1]])))
+        return batches
+
+    def _scan_sequence(self, sequence_id, sequence, tensor, probs):
+        """Probabilities, transcript record and ORF results of one sequence."""
+        effective_length = len(sequence)
+
+        # 获取有效序列区域的预测概率
+        valid_mask = tensor[:effective_length] != 0
+        seq_probs = probs[:effective_length][valid_mask].cpu().numpy()
+
+        data = {
+            "transcript_id": sequence_id,
+            "length": effective_length,
+            "sequence": sequence,
+        }
+
+        # 提取预测概率
+        tis_probs = probs[:effective_length, 0].cpu().numpy()
+        tts_probs = probs[:effective_length, 1].cpu().numpy()
+
+        # 寻找潜在的TIS和TTS位点
+        potential_tis = []
+        potential_tts = []
+
+        # 寻找ATG和终止密码子
+        for j in range(len(sequence) - 2):
+            codon = sequence[j : j + 3]
+            if codon == "ATG" and tis_probs[j : j + 3].mean() > self.tis_cutoff:
+                potential_tis.append(j)
+            elif (
+                codon in ["TAA", "TAG", "TGA"]
+                and tts_probs[j : j + 3].mean() > self.tts_cutoff
+            ):
+                potential_tts.append(j)
+
+        # 这部分处理每个序列的ORF分析
+        results = self._process_orfs(
+            sequence_id,
+            sequence,
+            potential_tis,
+            potential_tts,
+            tis_probs,
+            tts_probs,
+        )
+        return seq_probs, data, results
 
     def _process_orfs(
         self, sequence_id, sequence, potential_tis, potential_tts, tis_probs, tts_probs
