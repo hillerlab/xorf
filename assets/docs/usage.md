@@ -232,6 +232,21 @@ clusters or if you trained custom weights.
 slowest predictor. Set `skip_netstart` to `false` to include its signal, at the
 cost of runtime and a model download.
 
+### TransAID
+
+| Parameter | Type | Default | What it does |
+|---|---|---|---|
+| `skip_transaid` | boolean | `false` | Do not run TransAID. Every TransAID column of the candidate table is then missing (the same value a candidate gets when TransAID did not score it). |
+| `transaid_tis_cutoff` | float | `0.1` | Minimum start-site (TIS) probability for TransAID to pair an ATG with a stop codon. |
+| `transaid_tts_cutoff` | float | `0.1` | Minimum stop-site (TTS) probability for TransAID to pair a stop codon. |
+
+**When to change this:** `skip_transaid` only makes sense together with a PREDICT
+model trained without TransAID features; the default model uses them, and the
+pipeline warns when the step is skipped. TransAID only reports (start, stop)
+pairs whose probabilities pass both cutoffs, so lower cutoffs export a strict
+superset of the default rows (filtering them back to `> 0.1` reproduces the
+default output exactly); this is meant for experiments with retrained models.
+
 ### Selenocysteine masking
 
 Selenocysteine (Sec) is an amino acid coded by the stop codon TGA in specific
@@ -292,12 +307,17 @@ how the XGBoost classifier filters ORFs.
 | Parameter | Type | Default | What it does |
 |---|---|---|---|
 | `skip_joined_concat` | boolean | `false` | Skip merging all renamed per-region files into one combined file. When `true`, each region keeps its own renamed BED/TSV as the final output (nothing is merged). |
-| `do_polishing` | boolean | `true` | Clean up predictions before the final output: remove **duplicate** predictions (marked `#DU`) and strip **3′UTR-truncated** ORFs. Set to `false` to keep everything untouched. |
+| `do_polishing` | boolean | `true` | Clean up predictions before the final output: remove **duplicate** predictions (marked `#DU`) and strip **5′-truncated** predictions (`iso-utr`: the transcript starts inside a non-first exon of another prediction). Set to `false` to keep everything untouched. |
+| `strip_truncations` | boolean | `true` | With `do_polishing`, drop the predictions `iso-utr` flags as truncated. `false` keeps them in `04_results` while still separating `#DU` duplicates. |
 
 **When to change this:** the default (`do_polishing: true`) is what most people
 want — it removes likely artefacts. Turn polishing off if you want to do your own
 filtering downstream. `skip_joined_concat` is mostly a technical switch; keep the
 default unless you need per-region files as the final result.
+Set `strip_truncations: false` when the input regions come from a curated
+annotation (e.g. RefSeq, GENCODE) rather than from reads: there, alternative
+transcription start sites look like truncations, and stripping them removes
+real, annotated CDSs.
 
 ### Renaming / output naming
 
@@ -382,7 +402,7 @@ results/
 | `02_merged/` | One merged `*.bed` + `*.tsv` combining all renamed predictions | Skips when `skip_joined_concat: true` |
 | `02_merged/raw/` | Merged raw predictions | Only with `predict_keep_raw: true` |
 | `03_duplicates/` | `*.duplicates.bed` — predictions removed as duplicates | Only with `do_polishing: true` |
-| `04_results/` | `*.hq.bed` — the **final predictions**: duplicates removed, 3′UTR-truncated ORFs stripped | The files you want, and what `XORF.out.files` emits when `do_polishing: true`. Truncation discards are `XORF.out.truncations`. |
+| `04_results/` | `*.hq.bed` — the **final predictions**: duplicates removed, 5′-truncated predictions stripped (unless `strip_truncations: false`) | The files you want, and what `XORF.out.files` emits when `do_polishing: true`. Truncation discards are `XORF.out.truncations`. |
 | `XORF_PIPELINE_INFO/` | `XORF_COUNTS/counts.tsv` + `xorf.versions.yml` | See below |
 | `pipeline_info/` | `execution_timeline_*.html`, `execution_trace_*.txt`, `execution_report_*.html`, `pipeline_dag_*.html` | Nextflow's own run reports |
 

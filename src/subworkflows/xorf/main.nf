@@ -64,8 +64,10 @@ workflow XORF {
       predict_keep_raw     // boolean
       selenocysteine_sites // path
       skip_netstart        // boolean
+      skip_transaid        // boolean
       rename_deactivate    // boolean
       do_polishing         // boolean
+      strip_truncations    // boolean
       skip_joined_concat   // boolean
       run_only_on          // boolean
       run_only_mode        // string [ options: mask, unmask ]
@@ -343,7 +345,8 @@ workflow XORF {
           ch_database,
           samba_weights,
           esm_weights,
-          skip_netstart
+          skip_netstart,
+          skip_transaid
       )
 
       PREDICT_ORFS(
@@ -519,10 +522,12 @@ workflow XORF {
           ISOTOOLS_TRUNCATION_DETECTOR(
               ch_full_length_transcripts
           )
+          // INFO: strip_truncations false (annotation-grade input) -> a hint no descriptor
+          // INFO: line contains, so every prediction stays in 04_results
           STRIP_TRUNCATIONS(
               ch_full_length_transcripts,
               ISOTOOLS_TRUNCATION_DETECTOR.out.descriptor,
-              "TRUNCATED"
+              strip_truncations ? "TRUNCATED" : "KEEP_ALL_PREDICTIONS"
           )
 
           // `files` used to be CONCAT_RENAMED (pre-detach, pre-strip). Downstream
@@ -581,16 +586,4 @@ workflow XORF {
       duplicates   = ch_duplicates              // [ meta, bed ] DETACH duplicates; empty if !do_polishing
       counts       = ch_counts
       versions     = ch_pipeline_versions
-}
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    FUNCTIONS
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-def randomHash() {
-    def chars = ('0'..'9') + ('a'..'z') + ('A'..'Z')
-    def random = new Random()
-    return (1..6).collect { chars[random.nextInt(chars.size())] }.join()
 }

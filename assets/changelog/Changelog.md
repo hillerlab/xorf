@@ -58,6 +58,25 @@ All notable changes to this project are documented below.
 
 ---
 
+## [0.1.2] - 2026-10-21
+
+### Features
+- **`skip_transaid`** (default `false`): skip the TransAID step. JOIN_NETS reads a header-only TransAID CSV (`assets/transaid/empty.transaid.csv`), so every TransAID column of the candidate table is written as missing (`-1`, read as NaN by PREDICT), as for candidates TransAID did not score. Only for a PREDICT model trained without TransAID features; the pipeline warns when the step is skipped.
+- **`transaid_tis_cutoff` / `transaid_tts_cutoff`** (default `0.1`, unchanged behaviour): TransAID's per-position cutoffs, passed through `ext.args`. TransAID only pairs ATGs and stops above them, so lower values export a strict superset of the default rows (filtering back to `> 0.1` reproduces the default columns exactly, checked on a rat pilot of 200 transcripts).
+- **`strip_truncations`** (default `true`): with `do_polishing`, `false` keeps the predictions `iso-utr` flags as 5′ truncations in `04_results`. With curated annotations as input (RefSeq HLratNor8), the current `iso-utr` flagged 464 predictions, 456 of them exactly the annotated CDS (alternative first exons).
+
+### Fixes
+- **`-resume` works again**: `main.nf` derived the regions meta `chr` (the chunk-file prefix) from `randomHash()`, so every task after the setup steps got a new hash on each launch. It is now a stable hash of the absolute regions path. The unused `randomHash()` in the xorf subworkflow is removed.
+- **Subprocess failures stop the task**: `orf` now checks the exit status of DIAMOND/MMseqs2, PSAURON, orfipy and TranslationAI (`run_command`). A failed search used to leave an empty hit table that was written out as "no BLAST hit" for every candidate of the chunk. Module version bumped to `0.0.31`.
+- **BLAST settings under `-profile slurm`**: the profile's `withName: '.*:BLAST'` block had the same selector as the top-level one and replaced it, dropping `ext.args` (`--esm` was never passed on SLURM). The profile now uses `'.*:GET_CANDIDATES:BLAST'`, so both blocks apply.
+
+### Performance
+- **TransAID pads to the sequence length, not to 27,109**: sequences are batched in length order and padded to the longest one plus 1,024 nt (rounded up to 256, capped at `--max_seq_len`). The model is fully convolutional with a receptive field of 2,003 nt (at most 1,009 positions to the right), so outputs are unchanged: byte-identical CSVs against 0.0.1-orf on 76 rat transcripts (incl. a 182 kb, a 27 kb and two N-containing sequences). TRANSAID was 65–75 % of all task time in the HLratNor8/hg38/mm39 traces; on one CPU, 200 random rat transcripts take 138 s instead of 828 s (5.98×). New flags `--pad_margin` (negative = old fixed padding) and `--max_tokens`; the module passes `--batch_size 1`, the fastest setting on one CPU. TRANSAID version bumped to `0.0.2-orf`.
+- **BLAST requests 3 CPUs / 8 GB** with the default DIAMOND + SwissProt search (it used ~2.5 CPUs and ≤ 2.6 GB RSS per 200-transcript chunk); `process_medium` (6 CPUs / 36 GB) is kept for `esm`, `custom_database` and `mmseqs2`.
+
+### Infrastructure
+- Manifest updated: pipeline version `0.1.2`.
+
 ## [0.1.1] - 2026-10-08
 
 ### Fixes
