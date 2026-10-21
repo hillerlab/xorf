@@ -38,6 +38,7 @@ workflow GET_CANDIDATES {
       samba_weights  // path
       esm_weights    // path
       skip_netstart  // boolean
+      skip_transaid  // boolean
 
     main:
       ch_versions = Channel.empty()
@@ -61,10 +62,22 @@ workflow GET_CANDIDATES {
         samba_weights
       )
 
-      TRANSAID(
-        RNASAMBA.out.fasta,
-        RNASAMBA.out.bed
-      )
+      // INFO: skip_transaid -> a PREDICT model trained without TransAID features needs no
+      // INFO: TransAID run; a header-only CSV makes the blast step write the missing value
+      // INFO: (-1) to every TransAID column, as for candidates TransAID did not score
+      if (skip_transaid) {
+        ch_transaid_csv = RNASAMBA.out.bed.map { meta, bed ->
+          [ meta, file("${projectDir}/../assets/transaid/empty.transaid.csv", checkIfExists: true) ]
+        }
+        ch_transaid_count = RNASAMBA.out.bed.map { meta, bed -> [ meta, 0 ] }
+      } else {
+        TRANSAID(
+          RNASAMBA.out.fasta,
+          RNASAMBA.out.bed
+        )
+        ch_transaid_csv = TRANSAID.out.transaid
+        ch_transaid_count = TRANSAID.out.count
+      }
 
       if (!skip_netstart) {
         NETSTART(
@@ -73,8 +86,8 @@ workflow GET_CANDIDATES {
         )
 
         ch_netstart = NETSTART.out.netstart
-  
-        TRANSAID.out.transaid
+
+        ch_transaid_csv
           .join(RNASAMBA.out.bed)
           .join(ch_netstart)
           .set { ch_nets }
@@ -85,7 +98,7 @@ workflow GET_CANDIDATES {
         JOIN_NETS( ch_transaid, ch_netstart, skip_netstart )
         ch_versions = ch_versions.mix(NETSTART.out.versions)
       } else {
-        TRANSAID.out.transaid
+        ch_transaid_csv
           .join(RNASAMBA.out.bed)
           .set { ch_nets }
 
@@ -120,7 +133,7 @@ workflow GET_CANDIDATES {
       */
 
       BLAST.out.counts
-      .join(TRANSAID.out.count)
+      .join(ch_transaid_count)
       .join(JOIN_NETS.out.count)
       .set { ch_counts }
 

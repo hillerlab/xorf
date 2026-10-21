@@ -28,10 +28,13 @@ process TRANSAID {
 
     script:
     def args = task.ext.args ?: ''
+    // INFO: batch size 1 -> every sequence is padded to its own length + margin
+    // INFO: (score-preserving), the fastest setting on one CPU; ext.args can override it
     """
     transaid \\
     --input $sequence \\
     --gpu -1 \\
+    --batch_size 1 \\
     --output ${meta.id}_${meta.name}_transaid \\
     $args
 

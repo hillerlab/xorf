@@ -270,11 +270,7 @@ fn __run_diamond_and_psauron(
 
     println!("INFO: Executing -> {}", cmd);
 
-    std::process::Command::new("bash")
-        .arg("-c")
-        .arg(cmd)
-        .status()
-        .unwrap_or_else(|e| panic!("ERROR: failed to execute {engine} command -> {e}"));
+    run_command(&cmd, &engine.to_string());
 
     if engine == Engine::Mmseqs2 {
         let _ = std::fs::remove_dir_all(&mmseqs_tmp);
@@ -283,11 +279,7 @@ fn __run_diamond_and_psauron(
     let cmd = format!("psauron -i {} -o {} -p", orfs.display(), psauron.display());
     println!("INFO: Executing -> {}", cmd);
 
-    std::process::Command::new("bash")
-        .arg("-c")
-        .arg(cmd)
-        .status()
-        .unwrap_or_else(|e| panic!("ERROR: failed to execute diamond command -> {e}"));
+    run_command(&cmd, "psauron");
 
     let mut seen = HashSet::new();
 
@@ -841,11 +833,7 @@ fn run_orfipy(fasta: &Path, dir: &Path) -> PathBuf {
         &dir.display()
     );
 
-    std::process::Command::new("bash")
-        .arg("-c")
-        .arg(&cmd)
-        .status()
-        .unwrap_or_else(|e| panic!("ERROR: failed to execute orfipy command -> {e}"));
+    run_command(&cmd, "orfipy");
 
     dir.join(ORF_PEP)
 }

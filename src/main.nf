@@ -62,6 +62,10 @@ if (params.help) {
         --predict_min_score_max_predictions FLOAT   Minimum score for ORF predictions [default: 0.50]
         --predict_max_predictions INT  Maximum number of ORF predictions [default: 3]
         --skip_netstart       BOOL      Skip netstart [default: false]
+        --skip_transaid       BOOL      Skip TransAID; only for a PREDICT model trained without TransAID features [default: false]
+        --transaid_tis_cutoff FLOAT     Min TIS probability for TransAID to pair an ATG [default: 0.1]
+        --transaid_tts_cutoff FLOAT     Min TTS probability for TransAID to pair a stop [default: 0.1]
+        --strip_truncations   BOOL      Drop predictions flagged as 5' truncations; false for annotation-grade input [default: true]
         --run_only_on         BOOL      Run only on masked or unmasked sequences [default: false]
         --run_only_mode       STRING    Run only on masked or unmasked sequences [default: null; options: mask, unmask]
         --run_only_target     STRING    Run only on masked or unmasked sequences [default: null; options: intersect, exclude]
@@ -129,6 +133,10 @@ def validateRun() {
     if (errors) {
         log.error "Parameter validation failed:\n${errors.join('\n')}"
         System.exit(1)
+    }
+
+    if (params.skip_transaid) {
+        log.warn "skip_transaid: TransAID is not run and all TransAID features are missing; use it only with a PREDICT model trained without them"
     }
 }
 
@@ -356,8 +364,10 @@ workflow XORF {
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
 
+    // INFO: chr names the chunks of every downstream task; a random value here gave every
+    // INFO: task a new hash on each launch, so -resume could not reuse any work
     MAIN (
-       Channel.fromPath(params.regions).map { it -> [ [id: it.baseName, chr: randomHash()], it ] },
+       Channel.fromPath(params.regions).map { it -> [ [id: it.baseName, chr: stableHash(it)], it ] },
        Channel.fromPath(params.sequence),
        ch_database,
        params.outdir,
@@ -367,8 +377,10 @@ workflow XORF {
        params.predict_keep_raw,
        params.selenocysteine_sites,
        params.skip_netstart,
+       params.skip_transaid,
        params.rename_deactivate,
        params.do_polishing,
+       params.strip_truncations,
        params.skip_joined_concat,
        params.run_only_on,
        params.run_only_mode,
@@ -400,10 +412,10 @@ workflow XORF {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-def randomHash() {
-    def chars = ('0'..'9') + ('a'..'z') + ('A'..'Z')
-    def random = new Random()
-    return (1..6).collect { chars[random.nextInt(chars.size())] }.join()
+// INFO: 6 hex characters derived from the absolute input path -> same value on every launch
+def stableHash(path) {
+    def digest = java.security.MessageDigest.getInstance('MD5').digest(path.toAbsolutePath().toString().bytes)
+    return digest.encodeHex().toString().take(6)
 }
 
 def isProteinFasta(path) {
