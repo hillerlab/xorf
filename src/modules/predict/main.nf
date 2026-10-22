@@ -12,7 +12,10 @@ process PREDICT {
     label 'process_single'
 
     conda "${moduleDir}/environment.yml"
-    container 'ghcr.io/hillerlab/orf-predict:latest'
+    // INFO: pinned, not latest: the model, its cutoff (-1 = bundle cutoff) and --no-transaid change
+    // INFO: together with this module, and a cached older latest image would read -1 as "keep every
+    // INFO: candidate". Bump the tag with every release that changes modules/predict.
+    container 'ghcr.io/hillerlab/orf-predict:v0.2.0'
 
     input:
     tuple val(meta), path(bed), path(blast), path(samba)
@@ -28,11 +31,18 @@ process PREDICT {
 
     script:
     def args = task.ext.args ?: ''
-    def threshold = task.ext.threshold ?: 0.0
-    def min_score_max_predictions = task.ext.min_score_max_predictions ?: 0.50
+    // INFO: negative cutoffs mean the cutoff stored in the model bundle
+    def threshold = task.ext.threshold != null ? task.ext.threshold : -1
+    def min_score_max_predictions = task.ext.min_score_max_predictions != null ? task.ext.min_score_max_predictions : -1
     def max_predictions = task.ext.max_predictions ?: 3
     def prefix = task.ext.prefix ?: "${meta.id}_${meta.name}"
     """
+    # INFO: predict.py < 0.1.0 (v2 model) reads the -1 cutoffs as "keep every candidate"
+    predict.py --version 2>&1 | grep -Eq 'Version: (0\\.[1-9]|[1-9])' || {
+        echo "ERROR: PREDICT needs predict.py >= 0.1.0 (orf-predict >= v0.2.0); found \$(predict.py --version 2>&1)" >&2
+        exit 1
+    }
+
     predict.py \\
     --blast $blast \\
     --samba $samba \\

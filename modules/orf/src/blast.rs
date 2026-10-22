@@ -19,7 +19,7 @@ use memmap2::Mmap;
 
 use std::collections::HashSet;
 use std::fs::File;
-use std::io::{BufWriter, Read, Write};
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::str::{from_utf8, FromStr};
 use std::sync::Arc;
@@ -268,18 +268,27 @@ fn __run_diamond_and_psauron(
         ),
     };
 
-    println!("INFO: Executing -> {}", cmd);
+    // INFO: when every ORF of the chunk fails the length filters the query is empty, and DIAMOND,
+    // INFO: MMseqs2 and PSAURON exit non-zero on it (a one-transcript rescued chunk): skip them
+    // INFO: and write the empty result, as before run_command checked exit codes
+    let has_query = has_records(&orfs);
 
-    run_command(&cmd, &engine.to_string());
+    if has_query {
+        println!("INFO: Executing -> {}", cmd);
+        run_command(&cmd, &engine.to_string());
+    } else {
+        println!("WARN: no ORF peptides in {orfs:?}, skipping {engine} and psauron");
+    }
 
     if engine == Engine::Mmseqs2 {
         let _ = std::fs::remove_dir_all(&mmseqs_tmp);
     }
 
-    let cmd = format!("psauron -i {} -o {} -p", orfs.display(), psauron.display());
-    println!("INFO: Executing -> {}", cmd);
-
-    run_command(&cmd, "psauron");
+    if has_query {
+        let cmd = format!("psauron -i {} -o {} -p", orfs.display(), psauron.display());
+        println!("INFO: Executing -> {}", cmd);
+        run_command(&cmd, "psauron");
+    }
 
     let mut seen = HashSet::new();
 
@@ -293,7 +302,8 @@ fn __run_diamond_and_psauron(
     }
 
     let psauron_predictions = read_psauron(psauron);
-    let esm_predictions = esm.then(|| run_esmfold2_fast(&orfs, outdir, &prefix, threads, &table));
+    let esm_predictions =
+        (esm && has_query).then(|| run_esmfold2_fast(&orfs, outdir, &prefix, threads, &table));
 
     let mut writer = BufWriter::new(
         File::create(blasting.with_extension(RESULT)).unwrap_or_else(|e| {
@@ -390,6 +400,18 @@ fn __run_diamond_and_psauron(
             }
         }
     }
+}
+
+/// Whether a FASTA file holds at least one record; a missing or empty file holds none.
+fn has_records(fasta: &Path) -> bool {
+    File::open(fasta)
+        .map(|f| {
+            BufReader::new(f)
+                .lines()
+                .map_while(Result::ok)
+                .any(|line| line.starts_with('>'))
+        })
+        .unwrap_or(false)
 }
 
 fn sanitize_esmfold2_sequence(sequence: &str) -> String {
@@ -2372,5 +2394,48 @@ mod tests {
         assert_eq!(scores[&8], 0.0);
         assert!(parse_esmfold2_scores("7\tNaN\n").is_err());
         assert!(parse_esmfold2_scores("7\t50\n7\t51\n").is_err());
+    }
+
+    fn scratch_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("orf-blast-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn has_records_needs_a_fasta_header() {
+        let dir = scratch_dir("records");
+        let empty = dir.join("empty.pep");
+        let fasta = dir.join("one.pep");
+        std::fs::write(&empty, "").unwrap();
+        std::fs::write(&fasta, ">1\nMKV\n").unwrap();
+
+        assert!(!has_records(&empty));
+        assert!(!has_records(&dir.join("missing.pep")));
+        assert!(has_records(&fasta));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn empty_query_writes_an_empty_result_without_searching() {
+        // INFO: the database does not exist and no search tool may run: run_command would
+        // INFO: exit the test process if DIAMOND or PSAURON were called
+        let dir = scratch_dir("empty-query");
+        std::fs::write(dir.join("chunk.orf.dedup.pep"), "").unwrap();
+
+        __run_diamond_and_psauron(
+            HashMap::new(),
+            dir.join("missing.dmnd"),
+            &dir,
+            "chunk".to_string(),
+            Engine::Diamond,
+            false,
+            1,
+        );
+
+        let result = dir.join("chunk.orf.diamond").with_extension(RESULT);
+        assert_eq!(std::fs::read_to_string(result).unwrap(), "");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

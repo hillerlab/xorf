@@ -58,6 +58,60 @@ All notable changes to this project are documented below.
 
 ---
 
+## [0.2.0] - 2026-10-22
+
+### Features
+- **New PREDICT model (v3.2)** replaces the v2 classifier (`model/orf_classifier_model.json`). It is an XGBoost model with 63 features:
+  - Per-candidate scores of TranslationAI, RNAsamba, PSAURON and DIAMOND/Swiss-Prot, and the ORF structure.
+  - Context features that compare each candidate with the other starts of the same stop codon (its family) and with the other candidates of its transcript.
+  - TransAID only enters as whether it paired an ATG with the candidate's stop codon, in the family and in the transcript. Its per-candidate scores and the BLAST alignment position/coverage of the start are left out because they did not carry over to other species: they moved the start to wherever the Swiss-Prot protein begins.
+  - Training data: coding transcripts and lncRNAs of human (hg38), mouse (mm39) and RefSeq rat (HLratNor8), 3.9 M candidates. Gene-grouped 5-fold cross-validation sets the number of trees (625).
+  - Rat brings RefSeq annotation and ortholog-only BLAST evidence; human and mouse proteins hit their own Swiss-Prot entries. Trained on human and mouse alone (v3.1), the same features called 0.4–0.85 points fewer annotated CDSs on each benchmark species below, at each model's own cutoff.
+- **Model cutoff.** The cutoff ships in the model bundle: it is the lowest score at which 0.8 % of the training lncRNA transcripts get a call (out-of-fold, the three species weighted equally), 0.29. `predict_min_score_max_predictions` and `predict_threshold` now default to `-1`, which means this cutoff (previously 0.50 and 0.03). Parameter files that still set `0.50` call the annotated CDS for 0.55–0.85 % fewer coding transcripts.
+- **Benchmark on five species not used for training.** Candidate tables of xorf 0.1.0 (cow) and 0.1.3 (the others), before polishing. Platypus was the reserved test. Columns: correct / different ORF / no call / lncRNAs with a call, %.
+
+  | Species | Coding transcripts | v3.2 | v2 | v3.2 − v2, correct transcripts (gene-clustered bootstrap) |
+  |---|---|---|---|---|
+  | HLbosTau10 (cow) | 23,803 (9,748 NM_) | 98.37 / 0.72 / 0.92 / 1.15 | 96.90 / 1.02 / 2.08 / 1.17 | +350 [+292, +408] |
+  | HLornAna4 (platypus) | 10,542 (30 NM_) | 99.30 / 0.05 / 0.65 / 0.72 | 97.84 / 0.37 / 1.79 / 0.98 | +154 [+122, +186] |
+  | HLeleMaxInd3A (elephant) | 22,956 (XM_) | 98.83 / 0.14 / 1.03 / 0.64 | 97.55 / 0.60 / 1.85 / 1.08 | +295 [+244, +341] |
+  | HLharHarp1 (harpy eagle) | 20,428 (XM_) | 98.53 / 0.22 / 1.25 / – | 96.14 / 0.85 / 3.01 / – | +487 [+419, +554] |
+  | HLcanLupFam7 (dog) | 25,235 (1,488 NM_) | 98.47 / 0.13 / 1.40 / 0.38 | 96.83 / 0.55 / 2.62 / 0.75 | +413 [+358, +466] |
+
+  - Wrong calls are fewer on every species: −74, −34, −106, −128 and −106 transcripts.
+  - XM_ starts follow Gnomon's convention (the most upstream in-frame ATG), so XM_ agreement partly measures that convention.
+- **`skip_transaid` switches the model.** With `skip_transaid`, PREDICT scores with a second bundled model trained without TransAID features: `model/no_transaid/`, 59 features, the same three training species, cutoff 0.33, `predict.py --no-transaid`.
+  - On the five benchmark species it calls 0.06–0.30 points fewer annotated CDSs than the default model: cow 98.17 %, platypus 99.24 %, elephant 98.53 %, harpy 98.36 %, dog 98.22 %. lncRNA calls are 0.33–1.05 %.
+  - Previously the default model scored these runs with all TransAID columns missing.
+- **NetStart2 is not a model input.** v2 used `netstart_atg_score`; the new model does not. `skip_netstart` stays `true` by default; with `false`, NetStart2 only adds its columns to the raw tables (help and usage corrected).
+
+### Fixes
+- **`orf blast` with an empty query.** When every ORF of a chunk fails the length filters, the deduplicated peptide FASTA is empty, and DIAMOND, MMseqs2 and PSAURON exit non-zero on it. This happened on a rescued one-transcript chunk of HLornAna4 lncRNAs.
+  - Since 0.1.2 (exit-status checks) the BLAST task then failed, and the whole run with it.
+  - The searches are now skipped and the empty result is written, as before 0.1.2. ESMFold2 is skipped likewise.
+  - Module version bumped to `0.0.32`.
+
+### Changes
+- **`predict.py` reads the v3 bundle**: JSON metadata (feature list, cutoff, training summary) plus the XGBoost model next to it. The feature code is generated from the training repository. Reading, merging, block mapping and output files are unchanged. Negative `--threshold` / `--min-score-max-predictions` use the bundle cutoff. `--model` and `--no-transaid` are mutually exclusive. Module version `0.1.0`.
+- **PREDICT cutoff defaults.** The PREDICT module takes `-1` (the model cutoff) when `ext.threshold` or `ext.min_score_max_predictions` is unset. An explicit `0` is now kept instead of being replaced by the Groovy `?:` default.
+- **PREDICT pins its image (`orf-predict:v0.2.0`) instead of `latest`.** The model, its cutoff and the CLI now change together with the module.
+  - A cached older `latest` image (Nextflow never re-pulls a cached tag) would run `predict.py` 0.0.24. It reads `-1` as "keep every candidate", so every transcript, lncRNAs included, would keep up to three ORFs.
+  - The task now also stops with an error if `predict.py` is older than 0.1.0.
+  - Pipeline versions before 0.2.0 still use `orf-predict:latest`, which now carries this model; with their 0.50 cutoff it calls about 2 % fewer CDSs. To keep v2 there, set the PREDICT container to `ghcr.io/hillerlab/orf-predict:v0.1.3` (`process { withName: '.*:PREDICT' { container = ... } }`).
+
+### Tests
+- **`modules/predict/model_test.py`**:
+  - Both bundles load, and the no-TransAID model has no TransAID features.
+  - The scores of a real chunk (two HLratNor8 coding transcripts and one lncRNA, every candidate; `modules/predict/fixtures/`) match the training code to 1e-5 for both models.
+  - The CLI keeps the best candidate above each model's cutoff, and logs that cutoff.
+  - `--model` and `--no-transaid` cannot be combined.
+
+- **`orf`**: unit tests for the empty-query path. With the database missing, no search tool may run, and an empty result file must be written.
+
+### Infrastructure
+- **CI** builds the PREDICT image of the revision under the pinned tag. It runs the PREDICT unit tests inside that image, and the end-to-end test then uses it. Until now CI ran the published `latest` image, i.e. the previous `predict.py`.
+- Manifest updated: pipeline version `0.2.0`.
+
 ## [0.1.3] - 2026-10-21
 
 ### Fixes

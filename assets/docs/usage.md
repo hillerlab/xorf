@@ -64,10 +64,11 @@ let us know in a [GitHub issue](https://github.com/alejandrogzi/xorf/issues).
 >  in a genome. You give it a genome and a list of genomic regions; it returns the
 >  most confident ORF predictions as BED + TSV files.
 > - **How does it work?** Each region is translated and scored with several
->  independent methods — translationAI, RNASamba, NetStart2, TransAID, and
+>  independent methods — translationAI, RNASamba, PSAURON, TransAID, and
 >  BLAST/DIAMOND against a protein database. A machine-learning classifier
 >  (XGBoost) combines these signals, and only the ORFs that pass its confidence
->  threshold make it to the final output.
+>  threshold make it to the final output. NetStart2 can also be run, but the
+>  classifier does not use its scores.
 
 ---
 
@@ -229,23 +230,28 @@ clusters or if you trained custom weights.
 
 **When to change this:** NetStart2 is **skipped** by default
 (`skip_netstart: true`) because it downloads a model at run time and is the
-slowest predictor. Set `skip_netstart` to `false` to include its signal, at the
-cost of runtime and a model download.
+slowest predictor. The PREDICT model (since xorf 0.2.0) does not use NetStart2
+scores, so `skip_netstart: false` only adds the NetStart columns to the raw
+tables; calls and scores are the same.
 
 ### TransAID
 
 | Parameter | Type | Default | What it does |
 |---|---|---|---|
-| `skip_transaid` | boolean | `false` | Do not run TransAID. Every TransAID column of the candidate table is then missing (the same value a candidate gets when TransAID did not score it). |
+| `skip_transaid` | boolean | `false` | Do not run TransAID. Every TransAID column of the candidate table is then missing (the same value a candidate gets when TransAID did not score it), and PREDICT scores with its second bundled model, trained without TransAID features. |
 | `transaid_tis_cutoff` | float | `0.1` | Minimum start-site (TIS) probability for TransAID to pair an ATG with a stop codon. |
 | `transaid_tts_cutoff` | float | `0.1` | Minimum stop-site (TTS) probability for TransAID to pair a stop codon. |
 
-**When to change this:** `skip_transaid` only makes sense together with a PREDICT
-model trained without TransAID features; the default model uses them, and the
-pipeline warns when the step is skipped. TransAID only reports (start, stop)
-pairs whose probabilities pass both cutoffs, so lower cutoffs export a strict
-superset of the default rows (filtering them back to `> 0.1` reproduces the
-default output exactly); this is meant for experiments with retrained models.
+**When to change this:** TransAID is the slowest step that runs by default. The default model uses
+only whether TransAID paired an ATG with a candidate's stop codon (per candidate
+family and per transcript), and calls 0.06–0.30 points more CDSs correctly than the
+model without TransAID features on five benchmark species. Set `skip_transaid:
+true` when runtime matters more; the pipeline warns when the step is skipped.
+TransAID only reports (start, stop) pairs whose probabilities pass both cutoffs,
+so lower cutoffs export a strict superset of the default rows (filtering them
+back to `> 0.1` reproduces the default output exactly). Both bundled models were
+trained on the `0.1` export: keep the cutoffs at their defaults unless you
+retrain.
 
 ### Selenocysteine masking
 
@@ -287,20 +293,28 @@ how the XGBoost classifier filters ORFs.
 |---|---|---|---|
 | `chunk_size` | integer | `20` | Number of regions per chunk. Regions are split into chunks so they can be processed in parallel. Smaller = more, smaller jobs; larger = fewer, bigger jobs. |
 | `predict_keep_raw` | boolean | `false` | Keep the **raw** predictions (every ORF the classifier saw, before filtering) in addition to the final set. See [Outputs](#outputs). |
-| `predict_min_score_max_predictions` | float | `0.50` | Minimum score (0–1) a prediction needs to be kept when multiple predictions compete for the same query. |
+| `predict_min_score_max_predictions` | float | `-1` | Minimum score (0–1) a prediction needs to be kept. Negative = the cutoff stored with the model (`0.29`; `0.33` with `skip_transaid`). |
 | `predict_max_predictions` | integer | `3` | Maximum number of predictions kept per query. |
-| `predict_threshold` | float | `0.03` | Confidence cutoff for the classifier. Predictions with a score below this are discarded. **Lower = more ORFs kept (and more false positives); higher = fewer, stricter ORFs.** |
+| `predict_threshold` | float | `-1` | Score cutoff for the `predicted_class` column of the TSV (1 = coding). It does not remove predictions. Negative = the cutoff stored with the model. |
 
 **When to change this:**
 
 - `chunk_size`: on a cluster, tune this to match your queue — too small creates
   thousands of tiny jobs, too large creates memory-hungry ones. The bundled
   `params.json` template uses `10`; the default is `20`.
-- `predict_threshold`: the default `0.03` is deliberately lenient because the
-  downstream renaming/polishing steps do additional filtering. Raise it (e.g.
-  `0.5`) if you want fewer, higher-confidence ORFs out of the box.
-- `predict_max_predictions` / `predict_min_score_max_predictions`: leave at the
-  defaults unless you know you need more than 3 candidate ORFs per query.
+- `predict_min_score_max_predictions`: the model's cutoff is set so that 0.8 %
+  of the training lncRNA transcripts (human, mouse and rat, out-of-fold) get a
+  call. On five species not used for training (cow, dog, elephant, platypus,
+  harpy eagle), it called:
+  - 0.4–1.2 % of the lncRNAs;
+  - the annotated CDS for 98.4–99.3 % of coding transcripts.
+
+  Raise it for fewer, higher-confidence ORFs; lower it to call more transcripts
+  at the cost of more false calls. Scores of earlier xorf versions (model v2) are
+  not comparable: parameter files that still set `0.50` call the annotated CDS
+  for 0.55–0.85 % fewer coding transcripts with the current model.
+- `predict_max_predictions`: leave at the default unless you need more than 3
+  candidate ORFs per query.
 
 ### Merging & polishing
 
@@ -515,9 +529,9 @@ final files are in `02_merged/`. If it's on and the folder is still empty, check
 any ORF survived filtering.
 
 **Q: Can I tune how many ORFs come out?**
-Yes — `predict_threshold` (lower = more ORFs, more false positives) and
-`predict_max_predictions` (how many per query). Polishing (`do_polishing`) can
-also be turned off to keep everything.
+Yes — `predict_min_score_max_predictions` (lower = more ORFs, more false
+positives) and `predict_max_predictions` (how many per query). Polishing
+(`do_polishing`) can also be turned off to keep everything.
 
 **Q: Does the pipeline download the protein database every run?**
 When you don't provide `custom_database`, xorf downloads the default
@@ -539,3 +553,11 @@ identical predictions produce identical identifiers across runs.
 `XORF_PIPELINE_INFO/xorf.versions.yml` records every tool version. Keep the
 container images and pipeline version identical, and results will be
 reproducible.
+
+**Q: I upgraded xorf. Do I need new container images?**
+Most modules use `:latest` images, and Docker and Apptainer never pull a cached
+`:latest` again. After an upgrade, delete the cached `*-latest` images (or point
+`apptainer.cacheDir` at a new directory) so the release's tools are pulled.
+PREDICT pins its image to the release (`orf-predict:v0.2.0`), because the model
+and its cutoff must match the pipeline; the task stops if it finds an older
+`predict.py`.

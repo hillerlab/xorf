@@ -92,9 +92,9 @@ cat > "${run_dir}/params.json" <<EOF
     "//3": "── ORF prediction [optional] ───────────────────────────────────────────",
     "chunk_size": 10,
     "predict_keep_raw": true,
-    "predict_min_score_max_predictions": 0.50,
+    "predict_min_score_max_predictions": -1,
     "predict_max_predictions": 3,
-    "predict_threshold": 0.03
+    "predict_threshold": -1
 
 }
 EOF

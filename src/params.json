@@ -14,7 +14,7 @@
     "//1.2": "── Netstart [optional] ───────────────────────────────────────────",
     "skip_netstart": true,
 
-    "//1.3": "── TransAID [optional; skip_transaid only for a PREDICT model trained without TransAID features; cutoffs below 0.1 export a superset of TransAID ORFs] ────",
+    "//1.3": "── TransAID [optional; skip_transaid scores with the PREDICT model trained without TransAID features; keep the 0.1 cutoffs the bundled models were trained on] ────",
     "skip_transaid": false,
     "transaid_tis_cutoff": 0.1,
     "transaid_tts_cutoff": 0.1,
@@ -28,9 +28,9 @@
     "//3": "── ORF prediction [optional] ───────────────────────────────────────────",
     "chunk_size": 10,
     "predict_keep_raw": false,
-    "predict_min_score_max_predictions": 0.50,
+    "predict_min_score_max_predictions": -1,
     "predict_max_predictions": 3,
-    "predict_threshold": 0.03,
+    "predict_threshold": -1,
 
     "//4": "── Output options [strip_truncations false keeps predictions iso-utr flags as 5' truncations, e.g. for annotation-grade input] ──────",
     "strip_truncations": true,
