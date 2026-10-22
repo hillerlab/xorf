@@ -28,8 +28,9 @@ process PREDICT {
 
     script:
     def args = task.ext.args ?: ''
-    def threshold = task.ext.threshold ?: 0.0
-    def min_score_max_predictions = task.ext.min_score_max_predictions ?: 0.50
+    // INFO: negative cutoffs mean the cutoff stored in the model bundle
+    def threshold = task.ext.threshold != null ? task.ext.threshold : -1
+    def min_score_max_predictions = task.ext.min_score_max_predictions != null ? task.ext.min_score_max_predictions : -1
     def max_predictions = task.ext.max_predictions ?: 3
     def prefix = task.ext.prefix ?: "${meta.id}_${meta.name}"
     """

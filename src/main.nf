@@ -59,10 +59,11 @@ if (params.help) {
         --chunk_size          INT     Chunk size for parallel processing [default: 20]
         --predict_keep_raw    BOOL      Keep raw predictions [default: false]
         --selenocysteine_sites PATH      Selenocysteine masking [default: null]
-        --predict_min_score_max_predictions FLOAT   Minimum score for ORF predictions [default: 0.50]
+        --predict_min_score_max_predictions FLOAT   Minimum score for ORF predictions; negative = the model's cutoff (0.19) [default: -1]
         --predict_max_predictions INT  Maximum number of ORF predictions [default: 3]
+        --predict_threshold   FLOAT     Score cutoff for the predicted_class column; negative = the model's cutoff [default: -1]
         --skip_netstart       BOOL      Skip netstart [default: false]
-        --skip_transaid       BOOL      Skip TransAID; only for a PREDICT model trained without TransAID features [default: false]
+        --skip_transaid       BOOL      Skip TransAID; PREDICT scores with its model trained without TransAID features [default: false]
         --transaid_tis_cutoff FLOAT     Min TIS probability for TransAID to pair an ATG [default: 0.1]
         --transaid_tts_cutoff FLOAT     Min TTS probability for TransAID to pair a stop [default: 0.1]
         --strip_truncations   BOOL      Drop predictions flagged as 5' truncations; false for annotation-grade input [default: true]
@@ -136,7 +137,7 @@ def validateRun() {
     }
 
     if (params.skip_transaid) {
-        log.warn "skip_transaid: TransAID is not run and all TransAID features are missing; use it only with a PREDICT model trained without them"
+        log.warn "skip_transaid: TransAID is not run; PREDICT scores with its model trained without TransAID features (0.3-0.4 points fewer correct CDSs in the rat/cow benchmark)"
     }
 }
 

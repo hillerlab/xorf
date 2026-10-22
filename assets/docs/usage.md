@@ -236,16 +236,20 @@ cost of runtime and a model download.
 
 | Parameter | Type | Default | What it does |
 |---|---|---|---|
-| `skip_transaid` | boolean | `false` | Do not run TransAID. Every TransAID column of the candidate table is then missing (the same value a candidate gets when TransAID did not score it). |
+| `skip_transaid` | boolean | `false` | Do not run TransAID. Every TransAID column of the candidate table is then missing (the same value a candidate gets when TransAID did not score it), and PREDICT scores with its second bundled model, trained without TransAID features. |
 | `transaid_tis_cutoff` | float | `0.1` | Minimum start-site (TIS) probability for TransAID to pair an ATG with a stop codon. |
 | `transaid_tts_cutoff` | float | `0.1` | Minimum stop-site (TTS) probability for TransAID to pair a stop codon. |
 
-**When to change this:** `skip_transaid` only makes sense together with a PREDICT
-model trained without TransAID features; the default model uses them, and the
-pipeline warns when the step is skipped. TransAID only reports (start, stop)
-pairs whose probabilities pass both cutoffs, so lower cutoffs export a strict
-superset of the default rows (filtering them back to `> 0.1` reproduces the
-default output exactly); this is meant for experiments with retrained models.
+**When to change this:** TransAID is the slowest step. The default model uses
+only whether TransAID paired an ATG with a candidate's stop codon (per candidate
+family and per transcript), and calls 0.3–0.4 points more CDSs correctly than the
+model without TransAID features in the rat/cow benchmark. Set `skip_transaid:
+true` when runtime matters more; the pipeline warns when the step is skipped.
+TransAID only reports (start, stop) pairs whose probabilities pass both cutoffs,
+so lower cutoffs export a strict superset of the default rows (filtering them
+back to `> 0.1` reproduces the default output exactly). Both bundled models were
+trained on the `0.1` export: keep the cutoffs at their defaults unless you
+retrain.
 
 ### Selenocysteine masking
 
@@ -287,20 +291,25 @@ how the XGBoost classifier filters ORFs.
 |---|---|---|---|
 | `chunk_size` | integer | `20` | Number of regions per chunk. Regions are split into chunks so they can be processed in parallel. Smaller = more, smaller jobs; larger = fewer, bigger jobs. |
 | `predict_keep_raw` | boolean | `false` | Keep the **raw** predictions (every ORF the classifier saw, before filtering) in addition to the final set. See [Outputs](#outputs). |
-| `predict_min_score_max_predictions` | float | `0.50` | Minimum score (0–1) a prediction needs to be kept when multiple predictions compete for the same query. |
+| `predict_min_score_max_predictions` | float | `-1` | Minimum score (0–1) a prediction needs to be kept. Negative = the cutoff stored with the model (`0.19`; `0.23` with `skip_transaid`). |
 | `predict_max_predictions` | integer | `3` | Maximum number of predictions kept per query. |
-| `predict_threshold` | float | `0.03` | Confidence cutoff for the classifier. Predictions with a score below this are discarded. **Lower = more ORFs kept (and more false positives); higher = fewer, stricter ORFs.** |
+| `predict_threshold` | float | `-1` | Score cutoff for the `predicted_class` column of the TSV (1 = coding). It does not remove predictions. Negative = the cutoff stored with the model. |
 
 **When to change this:**
 
 - `chunk_size`: on a cluster, tune this to match your queue — too small creates
   thousands of tiny jobs, too large creates memory-hungry ones. The bundled
   `params.json` template uses `10`; the default is `20`.
-- `predict_threshold`: the default `0.03` is deliberately lenient because the
-  downstream renaming/polishing steps do additional filtering. Raise it (e.g.
-  `0.5`) if you want fewer, higher-confidence ORFs out of the box.
-- `predict_max_predictions` / `predict_min_score_max_predictions`: leave at the
-  defaults unless you know you need more than 3 candidate ORFs per query.
+- `predict_min_score_max_predictions`: the model's cutoff is set so that 0.8 %
+  of the training lncRNA transcripts (human and mouse, out-of-fold) get a call.
+  On unseen species it called 0.6 % (rat) and 1.0 % (cow) of the lncRNAs and the
+  annotated CDS for 97.5 % / 98.0 % of coding transcripts. Raise it for fewer,
+  higher-confidence ORFs; lower it to call more transcripts at the cost of more
+  false calls. Scores of earlier xorf versions (model v2) are not comparable:
+  parameter files that still set `0.50` call the annotated CDS for about 2 %
+  fewer coding transcripts with the current model.
+- `predict_max_predictions`: leave at the default unless you need more than 3
+  candidate ORFs per query.
 
 ### Merging & polishing
 
@@ -515,9 +524,9 @@ final files are in `02_merged/`. If it's on and the folder is still empty, check
 any ORF survived filtering.
 
 **Q: Can I tune how many ORFs come out?**
-Yes — `predict_threshold` (lower = more ORFs, more false positives) and
-`predict_max_predictions` (how many per query). Polishing (`do_polishing`) can
-also be turned off to keep everything.
+Yes — `predict_min_score_max_predictions` (lower = more ORFs, more false
+positives) and `predict_max_predictions` (how many per query). Polishing
+(`do_polishing`) can also be turned off to keep everything.
 
 **Q: Does the pipeline download the protein database every run?**
 When you don't provide `custom_database`, xorf downloads the default
