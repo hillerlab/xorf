@@ -38,6 +38,20 @@ jobs:
             nextflow config -flat . -profile "$profile" > /dev/null
           done
 
+      # INFO: PREDICT pins its image tag (src/modules/predict/main.nf). Building that tag here makes
+      # INFO: the tests and the end-to-end run use this revision's predict.py and model instead of a
+      # INFO: published image.
+      - name: Build the PREDICT image of this revision
+        run: |
+          image=$(grep -o "ghcr.io/hillerlab/orf-predict:[^']*" src/modules/predict/main.nf)
+          docker build -f containers/predict/predict.Dockerfile -t "$image" .
+          echo "PREDICT_IMAGE=$image" >> "$GITHUB_ENV"
+
+      - name: PREDICT unit tests in the image
+        run: |
+          docker run --rm -v "$PWD/modules/predict:/src:ro" -w /src "$PREDICT_IMAGE" \
+            python -m unittest model_test.py blast_schema_test.py
+
       - name: Run default end-to-end smoke test
         timeout-minutes: 30
         run: assets/scripts/e2e.sh test

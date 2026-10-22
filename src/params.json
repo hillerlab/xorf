@@ -14,7 +14,7 @@
     "//1.2": "── Netstart [optional] ───────────────────────────────────────────",
     "skip_netstart": true,
 
-    "//1.3": "── TransAID [optional; skip_transaid only for a PREDICT model trained without TransAID features; cutoffs below 0.1 export a superset of TransAID ORFs] ────",
+    "//1.3": "── TransAID [optional; skip_transaid scores with the PREDICT model trained without TransAID features; keep the 0.1 cutoffs the bundled models were trained on] ────",
     "skip_transaid": false,
     "transaid_tis_cutoff": 0.1,
     "transaid_tts_cutoff": 0.1,

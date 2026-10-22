@@ -53,13 +53,15 @@ class BundledModelTests(unittest.TestCase):
         ):
             cutoff = predict.load_model(path)[1]["threshold"]
             with tempfile.TemporaryDirectory() as directory:
-                subprocess.run(
+                run = subprocess.run(
                     [sys.executable, str(SCRIPT), "-b", str(DATA / "chunk.blast.tsv"),
                      "-s", str(DATA / "chunk.samba.tsv"), "-a", str(DATA / "chunk.bed"),
                      "-o", directory, "-p", "chunk", "-mp", "1", *flags],
-                    check=True, capture_output=True,
+                    check=True, capture_output=True, text=True,
                 )
                 kept = pd.read_csv(Path(directory) / "chunk.predictions.tsv", sep="\t")
+            # the fixture's best scores cannot tell 0.19 from 0.50, the log line can
+            self.assertIn(f"min score to keep={cutoff:.4f}", run.stderr)
             above = expected[expected[column] >= cutoff]
             best = above.loc[above.groupby(above["id"].str.split("_ORF").str[0])[column].idxmax(), "id"]
             self.assertEqual(sorted(kept["id"]), sorted(best))

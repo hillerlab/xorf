@@ -64,10 +64,11 @@ let us know in a [GitHub issue](https://github.com/alejandrogzi/xorf/issues).
 >  in a genome. You give it a genome and a list of genomic regions; it returns the
 >  most confident ORF predictions as BED + TSV files.
 > - **How does it work?** Each region is translated and scored with several
->  independent methods — translationAI, RNASamba, NetStart2, TransAID, and
+>  independent methods — translationAI, RNASamba, PSAURON, TransAID, and
 >  BLAST/DIAMOND against a protein database. A machine-learning classifier
 >  (XGBoost) combines these signals, and only the ORFs that pass its confidence
->  threshold make it to the final output.
+>  threshold make it to the final output. NetStart2 can also be run, but the
+>  classifier does not use its scores.
 
 ---
 
@@ -229,8 +230,9 @@ clusters or if you trained custom weights.
 
 **When to change this:** NetStart2 is **skipped** by default
 (`skip_netstart: true`) because it downloads a model at run time and is the
-slowest predictor. Set `skip_netstart` to `false` to include its signal, at the
-cost of runtime and a model download.
+slowest predictor. The PREDICT model (since xorf 0.2.0) does not use NetStart2
+scores, so `skip_netstart: false` only adds the NetStart columns to the raw
+tables; calls and scores are the same.
 
 ### TransAID
 
@@ -240,7 +242,7 @@ cost of runtime and a model download.
 | `transaid_tis_cutoff` | float | `0.1` | Minimum start-site (TIS) probability for TransAID to pair an ATG with a stop codon. |
 | `transaid_tts_cutoff` | float | `0.1` | Minimum stop-site (TTS) probability for TransAID to pair a stop codon. |
 
-**When to change this:** TransAID is the slowest step. The default model uses
+**When to change this:** TransAID is the slowest step that runs by default. The default model uses
 only whether TransAID paired an ATG with a candidate's stop codon (per candidate
 family and per transcript), and calls 0.3–0.4 points more CDSs correctly than the
 model without TransAID features in the rat/cow benchmark. Set `skip_transaid:
@@ -548,3 +550,11 @@ identical predictions produce identical identifiers across runs.
 `XORF_PIPELINE_INFO/xorf.versions.yml` records every tool version. Keep the
 container images and pipeline version identical, and results will be
 reproducible.
+
+**Q: I upgraded xorf. Do I need new container images?**
+Most modules use `:latest` images, and Docker and Apptainer never pull a cached
+`:latest` again. After an upgrade, delete the cached `*-latest` images (or point
+`apptainer.cacheDir` at a new directory) so the release's tools are pulled.
+PREDICT pins its image to the release (`orf-predict:v0.2.0`), because the model
+and its cutoff must match the pipeline; the task stops if it finds an older
+`predict.py`.

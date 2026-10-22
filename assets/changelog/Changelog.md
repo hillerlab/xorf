@@ -78,19 +78,33 @@ All notable changes to this project are documented below.
 - **`skip_transaid` switches the model.** With `skip_transaid`, PREDICT scores with a second bundled model trained without TransAID features: `model/no_transaid/`, 59 features, cutoff 0.23, `predict.py --no-transaid`.
   - Rat / cow: 97.2 % / 97.6 % annotated CDS, 0.9 % / 0.8 % different ORF, lncRNA calls 0.52 % / 1.04 %.
   - Previously the default model scored these runs with all TransAID columns missing.
+- **NetStart2 is not a model input.** v2 used `netstart_atg_score`; the new model does not. `skip_netstart` stays `true` by default; with `false`, NetStart2 only adds its columns to the raw tables (help and usage corrected).
+
+### Fixes
+- **`orf blast` with an empty query.** When every ORF of a chunk fails the length filters, the deduplicated peptide FASTA is empty, and DIAMOND, MMseqs2 and PSAURON exit non-zero on it. This happened on a rescued one-transcript chunk of HLornAna4 lncRNAs.
+  - Since 0.1.2 (exit-status checks) the BLAST task then failed, and the whole run with it.
+  - The searches are now skipped and the empty result is written, as before 0.1.2. ESMFold2 is skipped likewise.
+  - Module version bumped to `0.0.32`.
 
 ### Changes
 - **`predict.py` reads the v3 bundle**: JSON metadata (feature list, cutoff, training summary) plus the XGBoost model next to it. The feature code is generated from the training repository. Reading, merging, block mapping and output files are unchanged. Negative `--threshold` / `--min-score-max-predictions` use the bundle cutoff. `--model` and `--no-transaid` are mutually exclusive. Module version `0.1.0`.
 - **PREDICT cutoff defaults.** The PREDICT module takes `-1` (the model cutoff) when `ext.threshold` or `ext.min_score_max_predictions` is unset. An explicit `0` is now kept instead of being replaced by the Groovy `?:` default.
+- **PREDICT pins its image (`orf-predict:v0.2.0`) instead of `latest`.** The model, its cutoff and the CLI now change together with the module.
+  - A cached older `latest` image (Nextflow never re-pulls a cached tag) would run `predict.py` 0.0.24. It reads `-1` as "keep every candidate", so every transcript, lncRNAs included, would keep up to three ORFs.
+  - The task now also stops with an error if `predict.py` is older than 0.1.0.
+  - Pipeline versions before 0.2.0 still use `orf-predict:latest`, which now carries this model; with their 0.50 cutoff it calls about 2 % fewer CDSs. To keep v2 there, set the PREDICT container to `ghcr.io/hillerlab/orf-predict:v0.1.3` (`process { withName: '.*:PREDICT' { container = ... } }`).
 
 ### Tests
 - **`modules/predict/model_test.py`**:
   - Both bundles load, and the no-TransAID model has no TransAID features.
   - The scores of a real chunk (two HLratNor8 coding transcripts and one lncRNA, every candidate; `modules/predict/fixtures/`) match the training code to 1e-5 for both models.
-  - The CLI keeps the best candidate above each model's cutoff.
+  - The CLI keeps the best candidate above each model's cutoff, and logs that cutoff.
   - `--model` and `--no-transaid` cannot be combined.
 
+- **`orf`**: unit tests for the empty-query path. With the database missing, no search tool may run, and an empty result file must be written.
+
 ### Infrastructure
+- **CI** builds the PREDICT image of the revision under the pinned tag. It runs the PREDICT unit tests inside that image, and the end-to-end test then uses it. Until now CI ran the published `latest` image, i.e. the previous `predict.py`.
 - Manifest updated: pipeline version `0.2.0`.
 
 ## [0.1.3] - 2026-10-21
