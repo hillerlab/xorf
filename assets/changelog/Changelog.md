@@ -58,6 +58,41 @@ All notable changes to this project are documented below.
 
 ---
 
+## [0.2.0] - 2026-10-22
+
+### Features
+- **New PREDICT model (v3.1)** replaces the v2 classifier (`model/orf_classifier_model.json`). It is an XGBoost model with 63 features:
+  - Per-candidate scores of TranslationAI, RNAsamba, PSAURON and DIAMOND/Swiss-Prot, and the ORF structure.
+  - Context features that compare each candidate with the other starts of the same stop codon (its family) and with the other candidates of its transcript.
+  - TransAID only enters as whether it paired an ATG with the candidate's stop codon, in the family and in the transcript. Its per-candidate scores and the BLAST alignment position/coverage of the start are left out because they did not carry over to other species: they moved the start to wherever the Swiss-Prot protein begins.
+  - Training data: human (hg38) and mouse (mm39) coding transcripts and lncRNAs, 2.6 M candidates. Gene-grouped 5-fold cross-validation sets the number of trees.
+- **Model cutoff.** The cutoff ships in the model bundle: it is the lowest score at which 0.8 % of the training lncRNA transcripts get a call (out-of-fold, human and mouse weighted equally), 0.19. `predict_min_score_max_predictions` and `predict_threshold` now default to `-1`, which means this cutoff (previously 0.50 and 0.03). Parameter files that still set `0.50` call the annotated CDS for about 2 % fewer coding transcripts (95.2 % / 95.9 % instead of 97.5 % / 98.0 % on rat / cow).
+- **Benchmark on two species not used for training** (RefSeq HLratNor8 / HLbosTau10; candidate tables of xorf 0.1.0, before polishing):
+
+  | Outcome | v3.1 (rat / cow) | v2 (rat / cow) |
+  |---|---|---|
+  | Annotated CDS called (coding transcripts) | 97.5 % / 98.0 % | 96.3 % / 96.9 % |
+  | Different ORF called | 0.9 % / 0.8 % | 1.1 % / 1.0 % |
+  | No call | 1.6 % / 1.3 % | 2.6 % / 2.1 % |
+  | lncRNAs with a call | 0.60 % / 1.02 % | 0.96 % / 1.17 % |
+- **`skip_transaid` switches the model.** With `skip_transaid`, PREDICT scores with a second bundled model trained without TransAID features: `model/no_transaid/`, 59 features, cutoff 0.23, `predict.py --no-transaid`.
+  - Rat / cow: 97.2 % / 97.6 % annotated CDS, 0.9 % / 0.8 % different ORF, lncRNA calls 0.52 % / 1.04 %.
+  - Previously the default model scored these runs with all TransAID columns missing.
+
+### Changes
+- **`predict.py` reads the v3 bundle**: JSON metadata (feature list, cutoff, training summary) plus the XGBoost model next to it. The feature code is generated from the training repository. Reading, merging, block mapping and output files are unchanged. Negative `--threshold` / `--min-score-max-predictions` use the bundle cutoff. `--model` and `--no-transaid` are mutually exclusive. Module version `0.1.0`.
+- **PREDICT cutoff defaults.** The PREDICT module takes `-1` (the model cutoff) when `ext.threshold` or `ext.min_score_max_predictions` is unset. An explicit `0` is now kept instead of being replaced by the Groovy `?:` default.
+
+### Tests
+- **`modules/predict/model_test.py`**:
+  - Both bundles load, and the no-TransAID model has no TransAID features.
+  - The scores of a real chunk (two HLratNor8 coding transcripts and one lncRNA, every candidate; `modules/predict/fixtures/`) match the training code to 1e-5 for both models.
+  - The CLI keeps the best candidate above each model's cutoff.
+  - `--model` and `--no-transaid` cannot be combined.
+
+### Infrastructure
+- Manifest updated: pipeline version `0.2.0`.
+
 ## [0.1.3] - 2026-10-21
 
 ### Fixes
