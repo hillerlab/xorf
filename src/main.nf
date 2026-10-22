@@ -59,7 +59,7 @@ if (params.help) {
         --chunk_size          INT     Chunk size for parallel processing [default: 20]
         --predict_keep_raw    BOOL      Keep raw predictions [default: false]
         --selenocysteine_sites PATH      Selenocysteine masking [default: null]
-        --predict_min_score_max_predictions FLOAT   Minimum score for ORF predictions; negative = the model's cutoff (0.19; 0.23 with skip_transaid) [default: -1]
+        --predict_min_score_max_predictions FLOAT   Minimum score for ORF predictions; negative = the model's cutoff (0.29; 0.33 with skip_transaid) [default: -1]
         --predict_max_predictions INT  Maximum number of ORF predictions [default: 3]
         --predict_threshold   FLOAT     Score cutoff for the predicted_class column; negative = the model's cutoff [default: -1]
         --skip_netstart       BOOL      Skip NetStart2; the PREDICT model does not use its scores [default: true]
@@ -137,7 +137,7 @@ def validateRun() {
     }
 
     if (params.skip_transaid) {
-        log.warn "skip_transaid: TransAID is not run; PREDICT scores with its model trained without TransAID features (0.3-0.4 points fewer correct CDSs in the rat/cow benchmark)"
+        log.warn "skip_transaid: TransAID is not run; PREDICT scores with its model trained without TransAID features (0.06-0.30 points fewer correct CDSs on five benchmark species)"
     }
 }
 

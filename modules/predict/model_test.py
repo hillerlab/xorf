@@ -60,7 +60,7 @@ class BundledModelTests(unittest.TestCase):
                     check=True, capture_output=True, text=True,
                 )
                 kept = pd.read_csv(Path(directory) / "chunk.predictions.tsv", sep="\t")
-            # the fixture's best scores cannot tell 0.19 from 0.50, the log line can
+            # the fixture's best scores cannot tell the cutoff from 0.50, the log line can
             self.assertIn(f"min score to keep={cutoff:.4f}", run.stderr)
             above = expected[expected[column] >= cutoff]
             best = above.loc[above.groupby(above["id"].str.split("_ORF").str[0])[column].idxmax(), "id"]

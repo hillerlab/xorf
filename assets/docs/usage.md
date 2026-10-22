@@ -244,8 +244,8 @@ tables; calls and scores are the same.
 
 **When to change this:** TransAID is the slowest step that runs by default. The default model uses
 only whether TransAID paired an ATG with a candidate's stop codon (per candidate
-family and per transcript), and calls 0.3–0.4 points more CDSs correctly than the
-model without TransAID features in the rat/cow benchmark. Set `skip_transaid:
+family and per transcript), and calls 0.06–0.30 points more CDSs correctly than the
+model without TransAID features on five benchmark species. Set `skip_transaid:
 true` when runtime matters more; the pipeline warns when the step is skipped.
 TransAID only reports (start, stop) pairs whose probabilities pass both cutoffs,
 so lower cutoffs export a strict superset of the default rows (filtering them
@@ -293,7 +293,7 @@ how the XGBoost classifier filters ORFs.
 |---|---|---|---|
 | `chunk_size` | integer | `20` | Number of regions per chunk. Regions are split into chunks so they can be processed in parallel. Smaller = more, smaller jobs; larger = fewer, bigger jobs. |
 | `predict_keep_raw` | boolean | `false` | Keep the **raw** predictions (every ORF the classifier saw, before filtering) in addition to the final set. See [Outputs](#outputs). |
-| `predict_min_score_max_predictions` | float | `-1` | Minimum score (0–1) a prediction needs to be kept. Negative = the cutoff stored with the model (`0.19`; `0.23` with `skip_transaid`). |
+| `predict_min_score_max_predictions` | float | `-1` | Minimum score (0–1) a prediction needs to be kept. Negative = the cutoff stored with the model (`0.29`; `0.33` with `skip_transaid`). |
 | `predict_max_predictions` | integer | `3` | Maximum number of predictions kept per query. |
 | `predict_threshold` | float | `-1` | Score cutoff for the `predicted_class` column of the TSV (1 = coding). It does not remove predictions. Negative = the cutoff stored with the model. |
 
@@ -303,13 +303,16 @@ how the XGBoost classifier filters ORFs.
   thousands of tiny jobs, too large creates memory-hungry ones. The bundled
   `params.json` template uses `10`; the default is `20`.
 - `predict_min_score_max_predictions`: the model's cutoff is set so that 0.8 %
-  of the training lncRNA transcripts (human and mouse, out-of-fold) get a call.
-  On unseen species it called 0.6 % (rat) and 1.0 % (cow) of the lncRNAs and the
-  annotated CDS for 97.5 % / 98.0 % of coding transcripts. Raise it for fewer,
-  higher-confidence ORFs; lower it to call more transcripts at the cost of more
-  false calls. Scores of earlier xorf versions (model v2) are not comparable:
-  parameter files that still set `0.50` call the annotated CDS for about 2 %
-  fewer coding transcripts with the current model.
+  of the training lncRNA transcripts (human, mouse and rat, out-of-fold) get a
+  call. On five species not used for training (cow, dog, elephant, platypus,
+  harpy eagle), it called:
+  - 0.4–1.2 % of the lncRNAs;
+  - the annotated CDS for 98.4–99.3 % of coding transcripts.
+
+  Raise it for fewer, higher-confidence ORFs; lower it to call more transcripts
+  at the cost of more false calls. Scores of earlier xorf versions (model v2) are
+  not comparable: parameter files that still set `0.50` call the annotated CDS
+  for 0.55–0.85 % fewer coding transcripts with the current model.
 - `predict_max_predictions`: leave at the default unless you need more than 3
   candidate ORFs per query.
 
