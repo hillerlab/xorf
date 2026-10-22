@@ -58,6 +58,14 @@ All notable changes to this project are documented below.
 
 ---
 
+## [0.1.3] - 2026-10-21
+
+### Fixes
+- **`orf-net` image builds again**: its Rust build stage used `rust:1.93-slim-bullseye`, and `apt-get install` there fails with 404s because Debian 11 (bullseye) is past its end of life and its security archive no longer serves those packages. The `v0.1.1` and `v0.1.2` builds of `orf-net` failed this way, so the published image predates both. The build stage now uses `rust:1.93-slim-bookworm`, the same release as the runtime stage. This release ships the TransAID change of 0.1.2 in that image.
+
+### Infrastructure
+- Manifest updated: pipeline version `0.1.3`.
+
 ## [0.1.2] - 2026-10-21
 
 ### Features
