@@ -11,7 +11,8 @@ process DOWNLOAD_ESMFOLD_WEIGHTS {
     label 'process_single'
 
     conda "${moduleDir}/../blast/environment.yml"
-    container 'ghcr.io/hillerlab/orf-blast:latest'
+    // INFO: the BLAST image, pinned to the same tag as BLAST (src/modules/blast/main.nf)
+    container 'ghcr.io/hillerlab/orf-blast:v0.2.1'
 
     input:
     path helper
