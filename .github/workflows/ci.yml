@@ -52,6 +52,15 @@ jobs:
           docker run --rm -v "$PWD/modules/predict:/src:ro" -w /src "$PREDICT_IMAGE" \
             python -m unittest model_test.py blast_schema_test.py
 
+      # INFO: BLAST and TRANSLATION pin their images as well (src/modules/{blast,translation}/main.nf),
+      # INFO: so the end-to-end run uses this revision's orf binary.
+      - name: Build the BLAST and TRANSLATION images of this revision
+        run: |
+          image=$(grep -o "ghcr.io/hillerlab/orf-blast:[^']*" src/modules/blast/main.nf)
+          docker build -f containers/orf/blast.Dockerfile -t "$image" .
+          image=$(grep -o "ghcr.io/hillerlab/orf-tai:[^']*" src/modules/translation/main.nf)
+          docker build -f containers/orf/tai.Dockerfile -t "$image" .
+
       - name: Run default end-to-end smoke test
         timeout-minutes: 30
         run: assets/scripts/e2e.sh test

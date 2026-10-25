@@ -293,7 +293,8 @@ fn tai(
                     }
                 }
                 Some(Strand::Reverse) => {
-                    if orf_start - 3 < record.start {
+                    // INFO: not orf_start - 3, which underflows for a CDS starting within 3 bp of the scaffold start
+                    if orf_start < record.start + 3 {
                         println!(
                             "WARN: translationAi predicted a non-stop ORF: {orf:?} for {record:?}"
                         );

@@ -12,7 +12,10 @@ process BLAST {
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
-    container 'ghcr.io/hillerlab/orf-blast:latest'
+    // INFO: pinned, not latest: a cached older latest image keeps an orf binary that panics on a CDS
+    // INFO: at the first base of a scaffold (fixed in orf 0.0.33). Bump the tag with every release
+    // INFO: that changes modules/orf.
+    container 'ghcr.io/hillerlab/orf-blast:v0.2.1'
 
     input:
     tuple val(meta), path(bed), path(sequence), path(predictions), path(net)

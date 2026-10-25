@@ -560,4 +560,6 @@ Most modules use `:latest` images, and Docker and Apptainer never pull a cached
 `apptainer.cacheDir` at a new directory) so the release's tools are pulled.
 PREDICT pins its image to the release (`orf-predict:v0.2.0`), because the model
 and its cutoff must match the pipeline; the task stops if it finds an older
-`predict.py`.
+`predict.py`. BLAST and TRANSLATION pin theirs too (`orf-blast:v0.2.1`,
+`orf-tai:v0.2.1`): `orf` before 0.0.33 panics on a CDS that starts at the first
+base of a scaffold.
