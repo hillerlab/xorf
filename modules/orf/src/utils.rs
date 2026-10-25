@@ -633,15 +633,7 @@ pub fn map_absolute_cds(record: &GenePred, orf_start: u64, orf_end: u64) -> (u64
     // INFO: for Reverse this should be interpreted from 5' to 3'
     let (cds_start, cds_end) = get_cds_from_pos(record, orf_start, orf_end);
 
-    assert!(
-        cds_start > 0,
-        "ERROR: {orf_start} is not bigger than 0! -> {record:?}"
-    );
-    assert!(
-        cds_end > 0,
-        "ERROR: {orf_end} is not bigget than 0! -> {record:?}"
-    );
-
+    // INFO: 0 is a valid start: a transcript can begin at the first base of its scaffold
     assert!(
         cds_start >= record.start,
         "ERROR: {cds_start} is less than {}! Mapped ORF values {orf_start} - {orf_end} -> {record:?}",
@@ -722,6 +714,36 @@ mod tests {
 
         assert_eq!(predicted_cds_start, 45503698);
         assert_eq!(predicted_cds_end, 45515991);
+    }
+
+    #[test]
+    fn test_absolute_cds_mapping_reverse_at_scaffold_start() {
+        // INFO: HLdesRot15A spleen, an orfipy ORF (198-984) that runs to the transcript's 3' end,
+        // the first base of the scaffold; this used to panic with "198 is not bigger than 0!"
+        let data = "h1_scaffold_386\t0\t4980\tbeaver_h1_scaffold_386_geneI2T2\t0\t-\t0\t4980\t0,0,0\t6\t119,221,89,170,311,74,\t0,491,931,1190,3200,4906,";
+
+        let mut reader: Reader<Bed12> =
+            Reader::from_reader(std::io::Cursor::new(data.as_bytes())).unwrap();
+        let record = reader.next().unwrap().unwrap();
+
+        let (predicted_cds_start, predicted_cds_end) = map_absolute_cds(&record, 198, 984);
+
+        assert_eq!(predicted_cds_start, 0);
+        assert_eq!(predicted_cds_end, 3387);
+    }
+
+    #[test]
+    fn test_absolute_cds_mapping_forward_at_scaffold_start() {
+        let data = "scaffold_1\t0\t500\tR1\t0\t+\t0\t500\t0,0,0\t2\t100,200\t0,300";
+
+        let mut reader: Reader<Bed12> =
+            Reader::from_reader(std::io::Cursor::new(data.as_bytes())).unwrap();
+        let record = reader.next().unwrap().unwrap();
+
+        let (predicted_cds_start, predicted_cds_end) = map_absolute_cds(&record, 0, 150);
+
+        assert_eq!(predicted_cds_start, 0);
+        assert_eq!(predicted_cds_end, 350);
     }
 
     #[test]
