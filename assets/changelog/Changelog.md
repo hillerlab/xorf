@@ -58,6 +58,25 @@ All notable changes to this project are documented below.
 
 ---
 
+## [0.2.1] - 2026-10-25
+
+### Fixes
+- **`orf blast` and `orf tai` with a CDS at the first base of a scaffold.** Mapping an ORF to genome coordinates (`map_absolute_cds`) asserted that the CDS start and end are greater than 0, but 0 is a valid BED start.
+  - A minus-strand transcript at `h1_scaffold_386:0-4980` of an xasm assembly (HLdesRot15A, spleen) has an ORF that runs to its 3′ end, i.e. to the first base of the scaffold. `orf blast` panicked on it (`ERROR: 198 is not bigger than 0!`, exit 101), and the failed BLAST task stopped the run.
+  - The assertions that the CDS lies within the transcript stay.
+  - `orf tai`'s minus-strand stop-codon check computed `orf_start - 3`, which underflows for a CDS within 3 bp of the scaffold start. It now checks `orf_start < record.start + 3`.
+  - Module version bumped to `0.0.33`.
+
+### Changes
+- **BLAST and TRANSLATION pin their images (`orf-blast:v0.2.1`, `orf-tai:v0.2.1`) instead of `latest`.** Nextflow never re-pulls a cached tag, so a cached `latest` image would keep orf 0.0.32 and its panic. The ESMFold weight download runs in the BLAST image and pins the same tag.
+
+### Tests
+- **`orf`**: unit tests map an ORF to a CDS that starts at coordinate 0, on the minus strand (the HLdesRot15A transcript, CDS 0–3387) and on the plus strand.
+
+### Infrastructure
+- **CI** builds the BLAST and TRANSLATION images of the revision under their pinned tags, as for PREDICT, so the end-to-end test runs this revision's `orf`.
+- Manifest updated: pipeline version `0.2.1`.
+
 ## [0.2.0] - 2026-10-22
 
 ### Features
