@@ -1,0 +1,46 @@
+2026-10-26 17:14:57,871 | INFO | Datasets: ['hg38:coding', 'hg38:noncoding', 'mm39:coding', 'mm39:noncoding', 'HLratNor8:coding', 'HLratNor8:noncoding']
+2026-10-26 17:15:04,647 | INFO | hg38 coding: 534758 candidates, 19248 transcripts, 19223 positives (annotated CDS found for 99.80% of 19261 annotated transcripts)
+2026-10-26 17:15:08,452 | INFO | hg38 noncoding: 859350 candidates
+2026-10-26 17:15:17,097 | INFO | mm39 coding: 605111 candidates, 19548 transcripts, 19528 positives (annotated CDS found for 99.69% of 19568 annotated transcripts)
+2026-10-26 17:15:20,190 | INFO | mm39 noncoding: 604832 candidates
+2026-10-26 17:15:33,836 | INFO | HLratNor8 coding: 890012 candidates, 29277 transcripts, 29395 positives (annotated CDS found for 99.94% of 29277 annotated transcripts)
+2026-10-26 17:15:35,681 | INFO | HLratNor8 noncoding: 419111 candidates
+2026-10-26 17:16:35,392 | INFO | Dropping 6831 duplicate candidates (UNMASK copies) after building features
+2026-10-26 17:16:43,662 | INFO | Matrix: 3906343 rows x 63 features | positives=67990 (1.74%) | genes=116650
+2026-10-26 17:16:43,662 | INFO | XGBoost params: {'learning_rate': 0.05, 'max_depth': 7, 'min_child_weight': 3.014771990061502, 'subsample': 0.7664168864122094, 'colsample_bytree': 0.6280362294076922, 'reg_lambda': 0.5905711344237916, 'reg_alpha': 0.0025976909436198382, 'gamma': 0.0025943381118829698, 'tree_method': 'hist', 'max_bin': 256, 'objective': 'binary:logistic', 'eval_metric': 'aucpr', 'colsample_bynode': 0.7262421566290669, 'max_delta_step': 0}
+2026-10-26 17:20:31,222 | INFO | fold 1/5: 3125074 train / 781269 test rows, early stop at 497 trees (206s)
+2026-10-26 17:24:15,870 | INFO | fold 2/5: 3125075 train / 781268 test rows, early stop at 492 trees (224s)
+2026-10-26 17:29:45,897 | INFO | fold 3/5: 3125073 train / 781270 test rows, early stop at 662 trees (330s)
+2026-10-26 17:35:29,438 | INFO | fold 4/5: 3125075 train / 781268 test rows, early stop at 661 trees (343s)
+2026-10-26 17:40:37,835 | INFO | fold 5/5: 3125075 train / 781268 test rows, early stop at 678 trees (308s)
+2026-10-26 17:41:33,373 | INFO | OOF AP by tree count: {100: 0.97909, 200: 0.98115, 300: 0.98215, 400: 0.98261, 500: 0.9828, 600: 0.98286, 625: 0.98288, 700: 0.98284, 800: 0.98279}
+2026-10-26 17:41:33,373 | INFO | Chosen common tree count: 625 (OOF AP 0.98288)
+2026-10-26 17:41:36,461 | INFO | Threshold (lncRNA call rate 0.80% on out-of-fold): 0.2943 | per species {'HLratNor8': 0.742, 'hg38': 0.362, 'mm39': 1.296} | F1 cutoff 0.5005
+2026-10-26 17:42:01,078 | INFO | CV production rule (p>=thr, top1 per transcript): P=0.9476 R=0.9651 F1=0.9563
+2026-10-26 17:42:01,078 | INFO | CV production rule (p>=thr, top2 per transcript): P=0.9415 R=0.9692 F1=0.9552
+2026-10-26 17:42:01,078 | INFO | CV production rule (p>=thr, top3 per transcript): P=0.9414 R=0.9693 F1=0.9551
+2026-10-26 17:42:01,078 | INFO | CV production rule (p>=thr, top5 per transcript): P=0.9414 R=0.9693 F1=0.9551
+2026-10-26 17:42:01,079 | INFO | CV all                    v3: AP=0.9829 P=0.9414 R=0.9693 F1=0.9551 top1-acc=0.9739
+2026-10-26 17:42:01,080 | INFO | CV all                    v2: AP=0.9726 P=0.9084 R=0.9594 F1=0.9332 top1-acc=0.9721
+2026-10-26 17:42:01,080 | INFO | CV hg38:coding            v3: AP=0.9912 P=0.9741 R=0.9785 F1=0.9763 top1-acc=0.9795
+2026-10-26 17:42:01,080 | INFO | CV hg38:coding            v2: AP=0.9938 P=0.9612 R=0.9854 F1=0.9732 top1-acc=0.9908
+2026-10-26 17:42:01,080 | INFO | CV hg38:noncoding         v3: FP calls=354, lncRNA tx with a call=0.3615%
+2026-10-26 17:42:01,081 | INFO | CV hg38:noncoding         v2: FP calls=401, lncRNA tx with a call=0.4085%
+2026-10-26 17:42:01,081 | INFO | CV mm39:coding            v3: AP=0.9691 P=0.9335 R=0.9410 F1=0.9372 top1-acc=0.9412
+2026-10-26 17:42:01,081 | INFO | CV mm39:coding            v2: AP=0.9535 P=0.9114 R=0.9307 F1=0.9209 top1-acc=0.9358
+2026-10-26 17:42:01,081 | INFO | CV mm39:noncoding         v3: FP calls=1374, lncRNA tx with a call=1.2960%
+2026-10-26 17:42:01,081 | INFO | CV mm39:noncoding         v2: FP calls=2396, lncRNA tx with a call=2.1919%
+2026-10-26 17:42:01,081 | INFO | CV HLratNor8:coding       v3: AP=0.9947 P=0.9843 R=0.9821 F1=0.9832 top1-acc=0.9920
+2026-10-26 17:42:01,081 | INFO | CV HLratNor8:coding       v2: AP=0.9838 P=0.9619 R=0.9615 F1=0.9617 top1-acc=0.9839
+2026-10-26 17:42:01,081 | INFO | CV HLratNor8:noncoding    v3: FP calls=106, lncRNA tx with a call=0.7419%
+2026-10-26 17:42:01,081 | INFO | CV HLratNor8:noncoding    v2: FP calls=141, lncRNA tx with a call=0.9659%
+2026-10-26 17:42:01,081 | INFO | CV hg38:all               v3: AP=0.9898 P=0.9566 R=0.9785 F1=0.9674 top1-acc=0.9795
+2026-10-26 17:42:01,081 | INFO | CV hg38:all               v2: AP=0.9931 P=0.9421 R=0.9854 F1=0.9632 top1-acc=0.9908
+2026-10-26 17:42:01,082 | INFO | CV mm39:all               v3: AP=0.9580 P=0.8726 R=0.9410 F1=0.9055 top1-acc=0.9412
+2026-10-26 17:42:01,082 | INFO | CV mm39:all               v2: AP=0.9376 P=0.8135 R=0.9307 F1=0.8682 top1-acc=0.9358
+2026-10-26 17:42:01,082 | INFO | CV HLratNor8:all          v3: AP=0.9944 P=0.9807 R=0.9821 F1=0.9814 top1-acc=0.9920
+2026-10-26 17:42:01,082 | INFO | CV HLratNor8:all          v2: AP=0.9833 P=0.9573 R=0.9615 F1=0.9594 top1-acc=0.9839
+2026-10-26 17:42:03,404 | INFO | Refitting on all rows with 625 trees
+2026-10-26 17:44:56,090 | INFO | Top features: {'tai_mean_score': 3144882.0, 'tx_delta_tai_mean_score': 720564.0, 'tai_stop_score': 450528.0, 'fam_delta_tai_start_score': 182051.0, 'tx_rank_tai_mean_score': 146118.0, 'fam_has_transaid_integrated_score': 86614.0, 'blast_length': 55209.0, 'tai_start_minus_stop': 45765.0, 'fam_has_blast_percentage_aligned': 45751.0, 'famtx_delta_blast_aligned': 45367.0, 'fam_is_first_atg': 37605.0, 'tai_start_score': 34841.0}
+2026-10-26 17:44:56,090 | INFO | Saved model_v3.2/orf_classifier_v3.bundle.json
+2026-10-26 17:44:56,090 | INFO | Done in 30.0 min

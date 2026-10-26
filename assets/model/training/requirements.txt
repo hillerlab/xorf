@@ -1,0 +1,7 @@
+# library versions the shipped models were trained with (Python 3.12.10)
+numpy==2.5.4
+pandas==3.0.6
+pyarrow==26.0.0
+scikit-learn==1.9.1
+scipy==1.18.1
+xgboost==3.4.1
