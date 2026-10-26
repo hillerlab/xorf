@@ -1,0 +1,4 @@
+data/
+model_*/
+__pycache__/
+training_data.tar.gz
