@@ -16,12 +16,12 @@ process RNASAMBA {
 
     input:
     tuple val(meta), path(bed), path(sequence)
-    tuple val(_), path(weights)
+    tuple val(_meta), path(weights)
 
     output:
-    tuple val(meta), path("${meta.id}_${meta.name}/*tsv")      , optional: true, emit: samba
-    tuple val(meta), path("${meta.id}_${meta.name}/*strip.fa") , optional: true, emit: fasta
-    tuple val(meta), path(bed)                    , optional: true, emit: bed
+    tuple val(meta), path("${prefix}/samba/*tsv")      , optional: true, emit: samba
+    tuple val(meta), path("${meta.name}.tmp.strip.fa") , optional: true, emit: fasta
+    tuple val(meta), path(bed)                        , optional: true, emit: bed
     path "versions.yml", emit: versions
 
     when:
@@ -31,7 +31,7 @@ process RNASAMBA {
     def args = task.ext.args ?: ''
     def upstream = meta.upstream == null ? task.ext.upstream ?: 1000 : meta.upstream
     def downstream = meta.downstream == null ? task.ext.downstream ?: 1000 : meta.downstream
-    def prefix = task.ext.prefix ?: "${meta.id}_${meta.name}"
+    prefix = task.ext.prefix ?: "${meta.id}_${meta.name}"
     """
     orf samba \\
     --fasta $sequence \\
@@ -41,9 +41,10 @@ process RNASAMBA {
     --weights $weights \\
     $args
 
-    mv ${prefix}/samba/*tsv ${prefix}/${prefix}.${meta.name}.samba.tsv && rm -rf ${prefix}/samba
+    // INFO: orf writes the stripped FASTA next to its input and the TSV under
+    // INFO: ${prefix}/samba. Declare both where they are written instead of
+    // INFO: renaming them: rename(2) can return EBUSY on shared filesystems.
     [ -f ${meta.name}.tmp.strip.fa ] || cp $sequence ${meta.name}.tmp.strip.fa
-    mv ${meta.name}.tmp.strip.fa ${prefix}/${prefix}.${meta.name}.strip.fa 
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -53,11 +54,11 @@ process RNASAMBA {
     """
 
     stub:
+    prefix = task.ext.prefix ?: "${meta.id}_${meta.name}"
     """
-    touch ${prefix}
-    touch ${prefix}/*strip.fa
-    touch ${prefix}/samba
-    touch ${prefix}/samba/*
+    touch ${meta.name}.tmp.strip.fa
+    mkdir -p ${prefix}/samba
+    touch ${prefix}/samba/${meta.name}.tmp.samba.tsv
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
