@@ -41,9 +41,9 @@ process RNASAMBA {
     --weights $weights \\
     $args
 
-    // INFO: orf writes the stripped FASTA next to its input and the TSV under
-    // INFO: ${prefix}/samba. Declare both where they are written instead of
-    // INFO: renaming them: rename(2) can return EBUSY on shared filesystems.
+    # INFO: orf writes the stripped FASTA next to its input and the TSV under
+    # INFO: ${prefix}/samba. Declare both where they are written instead of
+    # INFO: renaming them: rename(2) can return EBUSY on shared filesystems.
     [ -f ${meta.name}.tmp.strip.fa ] || cp $sequence ${meta.name}.tmp.strip.fa
 
     cat <<-END_VERSIONS > versions.yml
