@@ -58,6 +58,16 @@ All notable changes to this project are documented below.
 
 ---
 
+## [0.2.2] - 2026-11-09
+
+### Fixes
+- **RNASAMBA no longer renames its outputs.** `orf samba` writes the stripped FASTA next to its input (`<basename>.tmp.strip.fa`) and the classification TSV under `<outdir>/samba/`. The module moved both into `<outdir>` after `orf` exited. On a shared filesystem (HLmyoMyot9A, spleen) the strip-FASTA `mv` returned `EBUSY`, the task exited 1, and the pipeline aborted. Both outputs are now declared where `orf` writes them and the post-processing `mv`/`rm` are gone. Downstream consumers take the path, not the name.
+- **`stub` creates the declared outputs.** It touched `${prefix}` as a regular file and then globbed below it, so a stub run could not produce `${prefix}/samba/*tsv`.
+
+### Changes
+- Manifest updated: pipeline version `0.2.2`.
+- The branch also carries the `0.2.1` fix for a CDS at the first base of a scaffold and the pinned BLAST/TRANSLATION images.
+
 ## [0.2.1] - 2026-10-25
 
 ### Fixes
